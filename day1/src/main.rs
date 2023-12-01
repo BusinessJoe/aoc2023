@@ -1,11 +1,8 @@
 use std::io::{self, BufRead};
-use regex::Regex;
-
-use anyhow::Result;
 
 fn parse_line(s: &str) -> u32 {
-    let first_char = s.chars().find(|c| c.is_digit(10)).unwrap();
-    let last_char = s.chars().rev().find(|c| c.is_digit(10)).unwrap();
+    let first_char = s.chars().find(|c| c.is_ascii_digit()).unwrap();
+    let last_char = s.chars().rev().find(|c| c.is_ascii_digit()).unwrap();
 
     first_char.to_digit(10).unwrap() * 10 + last_char.to_digit(10).unwrap()
 }
@@ -21,17 +18,41 @@ fn parse_num(num: &str) -> u32 {
         "7" | "seven" => 7,
         "8" | "eight" => 8,
         "9" | "nine" => 9,
-        _ => unreachable!()
+        _ => panic!(),
     }
 }
 
-fn parse_wordy_line(s: &str) -> u32 {
-    let first_re: Regex = Regex::new(r"(one|two|three|four|five|six|seven|eight|nine|[1-9]).*").unwrap();
-    let last_re: Regex = Regex::new(r".*(one|two|three|four|five|six|seven|eight|nine|[1-9])").unwrap();
-    let first_match = first_re.captures(s).unwrap().get(1).unwrap();
-    let last_match = last_re.captures(s).unwrap().get(1).unwrap();
+const TOKENS: [&str; 18] = [
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "one", "two", "three", "four", "five", "six",
+    "seven", "eight", "nine",
+];
 
-    parse_num(first_match.as_str()) * 10 + parse_num(last_match.as_str())
+fn find_first_match(s: &str) -> &str {
+    for i in 0..s.len() {
+        for token in TOKENS.iter() {
+            if s[i..].starts_with(token) {
+                return token;
+            }
+        }
+    }
+    panic!()
+}
+
+fn find_last_match(s: &str) -> &str {
+    for i in (0..s.len()).rev() {
+        for token in TOKENS.iter() {
+            if s[i..].starts_with(token) {
+                return token;
+            }
+        }
+    }
+    panic!()
+}
+
+fn parse_wordy_line(s: &str) -> u32 {
+    let first_match = find_first_match(s);
+    let last_match = find_last_match(s);
+    parse_num(first_match) * 10 + parse_num(last_match)
 }
 
 fn find_calibration_sum(lines: &[String]) -> u32 {
@@ -42,7 +63,7 @@ fn find_wordy_calibration_sum(lines: &[String]) -> u32 {
     lines.iter().map(|l| parse_wordy_line(l)).sum()
 }
 
-fn main() -> Result<()> {
+fn main() {
     let stdin = io::stdin();
     let lines: Vec<String> = stdin.lock().lines().map(|r| r.unwrap()).collect();
 
@@ -50,8 +71,6 @@ fn main() -> Result<()> {
     let wordy_sum = find_wordy_calibration_sum(&lines);
     println!("Sum: {}", sum);
     println!("Wordy Sum: {}", wordy_sum);
-
-    Ok(())
 }
 
 #[cfg(test)]
