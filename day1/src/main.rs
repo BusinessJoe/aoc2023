@@ -1,8 +1,9 @@
 use std::io::{self, BufRead};
+use std::result::Result;
 
 fn parse_line(s: &str) -> u32 {
-    let first_char = s.chars().find(|c| c.is_ascii_digit()).unwrap();
-    let last_char = s.chars().rev().find(|c| c.is_ascii_digit()).unwrap();
+    let first_char = s.chars().find(char::is_ascii_digit).unwrap();
+    let last_char = s.chars().rev().find(char::is_ascii_digit).unwrap();
 
     first_char.to_digit(10).unwrap() * 10 + last_char.to_digit(10).unwrap()
 }
@@ -29,7 +30,7 @@ const TOKENS: [&str; 18] = [
 
 fn find_first_match(s: &str) -> &str {
     for i in 0..s.len() {
-        for token in TOKENS.iter() {
+        for token in &TOKENS {
             if s[i..].starts_with(token) {
                 return token;
             }
@@ -40,7 +41,7 @@ fn find_first_match(s: &str) -> &str {
 
 fn find_last_match(s: &str) -> &str {
     for i in (0..s.len()).rev() {
-        for token in TOKENS.iter() {
+        for token in &TOKENS {
             if s[i..].starts_with(token) {
                 return token;
             }
@@ -65,12 +66,12 @@ fn find_wordy_calibration_sum(lines: &[String]) -> u32 {
 
 fn main() {
     let stdin = io::stdin();
-    let lines: Vec<String> = stdin.lock().lines().map(|r| r.unwrap()).collect();
+    let lines: Vec<String> = stdin.lock().lines().map(Result::unwrap).collect();
 
     let sum = find_calibration_sum(&lines);
     let wordy_sum = find_wordy_calibration_sum(&lines);
-    println!("Sum: {}", sum);
-    println!("Wordy Sum: {}", wordy_sum);
+    println!("Sum: {sum}");
+    println!("Wordy Sum: {wordy_sum}");
 }
 
 #[cfg(test)]
