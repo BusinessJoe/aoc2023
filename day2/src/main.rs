@@ -63,11 +63,11 @@ mod tests {
     #[test]
     fn test_2() {
         let lines = vec![
-            "Game 1: 3 blue, 4 red; 1 red, 2 green, 6 blue; 2 green".to_string(),
-            "Game 2: 1 blue, 2 green; 3 green, 4 blue, 1 red; 1 green, 1 blue".to_string(),
-            "Game 3: 8 green, 6 blue, 20 red; 5 blue, 4 red, 13 green; 5 green, 1 red".to_string(),
-            "Game 4: 1 green, 3 red, 6 blue; 3 green, 6 red; 3 green, 15 blue, 14 red".to_string(),
-            "Game 5: 6 red, 1 blue, 3 green; 2 blue, 1 red, 2 green".to_string(),
+            "Game 1: 3 blue, 4 red; 1 red, 2 green, 6 blue; 2 green",
+            "Game 2: 1 blue, 2 green; 3 green, 4 blue, 1 red; 1 green, 1 blue",
+            "Game 3: 8 green, 6 blue, 20 red; 5 blue, 4 red, 13 green; 5 green, 1 red",
+            "Game 4: 1 green, 3 red, 6 blue; 3 green, 6 red; 3 green, 15 blue, 14 red",
+            "Game 5: 6 red, 1 blue, 3 green; 2 blue, 1 red, 2 green",
         ];
 
         let (_, sum) = solution(&lines);
@@ -76,7 +76,7 @@ mod tests {
 
     #[test]
     fn test_2_single() {
-        let lines = vec!["Game 1: 3 blue, 4 red; 1 red, 2 green, 6 blue; 2 green".to_string()];
+        let lines = vec!["Game 1: 3 blue, 4 red; 1 red, 2 green, 6 blue; 2 green"];
 
         let (_, sum) = solution(&lines);
         assert_eq!(48, sum);
