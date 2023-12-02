@@ -1,9 +1,9 @@
 use std::io::{self, BufRead};
 use std::result::Result;
 
-fn parse_line(s: &str) -> u32 {
-    let first_char = s.chars().find(char::is_ascii_digit).unwrap();
-    let last_char = s.chars().rev().find(char::is_ascii_digit).unwrap();
+fn parse_line(s: impl AsRef<str>) -> u32 {
+    let first_char = s.as_ref().chars().find(char::is_ascii_digit).unwrap();
+    let last_char = s.as_ref().chars().rev().find(char::is_ascii_digit).unwrap();
 
     first_char.to_digit(10).unwrap() * 10 + last_char.to_digit(10).unwrap()
 }
@@ -50,18 +50,18 @@ fn find_last_match(s: &str) -> &str {
     panic!()
 }
 
-fn parse_wordy_line(s: &str) -> u32 {
-    let first_match = find_first_match(s);
-    let last_match = find_last_match(s);
+fn parse_wordy_line(s: impl AsRef<str>) -> u32 {
+    let first_match = find_first_match(s.as_ref());
+    let last_match = find_last_match(s.as_ref());
     parse_num(first_match) * 10 + parse_num(last_match)
 }
 
 fn find_calibration_sum(lines: &[String]) -> u32 {
-    lines.iter().map(|l| parse_line(l)).sum()
+    lines.iter().map(parse_line).sum()
 }
 
 fn find_wordy_calibration_sum(lines: &[String]) -> u32 {
-    lines.iter().map(|l| parse_wordy_line(l)).sum()
+    lines.iter().map(parse_wordy_line).sum()
 }
 
 fn main() {
