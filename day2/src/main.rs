@@ -1,82 +1,64 @@
-use regex::Regex;
 use std::{
     cmp,
     io::{self, BufRead},
 };
 
-fn part1(lines: &[String]) -> u32 {
-    let id_regex = Regex::new(r"Game (\d+):").unwrap();
-    let cube_regex = Regex::new(r"(\d+) (red|green|blue)").unwrap();
+/// Returns the line's ID and an iterator over (count, color) pairs.
+fn parse_line(line: &str) -> (u32, impl Iterator<Item = (u32, &str)>) {
+    let (id_part, cube_part): (&str, &str) = line.split_once(": ").unwrap();
+    let id: u32 = id_part.split_whitespace().last().unwrap().parse().unwrap();
 
-    let mut sum = 0;
-    for line in lines {
-        let id_str = id_regex.captures(line).unwrap().get(1).unwrap().as_str();
-        let id: u32 = id_str.parse().unwrap();
-
-        let valid_game = cube_regex.captures_iter(line).all(|cap| {
-            let count_str = cap.get(1).unwrap().as_str();
+    let count_col_iter = cube_part
+        .split("; ")
+        .flat_map(|round| round.split(", "))
+        .map(|cube_count| {
+            let (count_str, color) = cube_count.split_once(' ').unwrap();
             let count: u32 = count_str.parse().unwrap();
-            let color = cap.get(2).unwrap().as_str();
-
-            let limit = match color {
-                "red" => 12,
-                "green" => 13,
-                "blue" => 14,
-                _ => panic!(),
-            };
-
-            count <= limit
+            (count, color)
         });
 
-        if valid_game {
-            sum += id;
-        }
-    }
-
-    sum
+    (id, count_col_iter)
 }
 
-fn part2(lines: &[String]) -> u32 {
-    let cube_regex = Regex::new(r"(\d+) (red|green|blue)").unwrap();
+/// Return solutions to part 1 and part 2.
+fn solution(lines: impl IntoIterator<Item = impl AsRef<str>>) -> (u32, u32) {
+    let mut sum1 = 0;
+    let mut sum2 = 0;
 
-    let mut sum = 0;
     for line in lines {
-        let mut max_r = 0;
-        let mut max_g = 0;
-        let mut max_b = 0;
+        let (id, count_col_iter) = parse_line(line.as_ref());
 
-        for cap in cube_regex.captures_iter(line) {
-            let count_str = cap.get(1).unwrap().as_str();
-            let count: u32 = count_str.parse().unwrap();
-            let color = cap.get(2).unwrap().as_str();
-
+        let (mut r, mut g, mut b) = (0, 0, 0);
+        for (count, color) in count_col_iter {
             match color {
-                "red" => max_r = cmp::max(max_r, count),
-                "green" => max_g = cmp::max(max_g, count),
-                "blue" => max_b = cmp::max(max_b, count),
+                "red" => r = cmp::max(r, count),
+                "green" => g = cmp::max(g, count),
+                "blue" => b = cmp::max(b, count),
                 _ => panic!(),
-            };
+            }
         }
 
-        sum += max_r * max_g * max_b;
+        if r <= 12 && g <= 13 && b <= 14 {
+            sum1 += id;
+        }
+        sum2 += r * g * b;
     }
 
-    sum
+    (sum1, sum2)
 }
 
 fn main() {
     let stdin = io::stdin();
-    let lines: Vec<String> = stdin.lock().lines().map(Result::unwrap).collect();
+    let lines = stdin.lock().lines().map(Result::unwrap);
 
-    let sum1 = part1(&lines);
-    let sum2 = part2(&lines);
+    let (sum1, sum2) = solution(lines);
     println!("Part 1: {sum1}");
     println!("Part 2: {sum2}");
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::part2;
+    use crate::solution;
 
     #[test]
     fn test_2() {
@@ -88,7 +70,7 @@ mod tests {
             "Game 5: 6 red, 1 blue, 3 green; 2 blue, 1 red, 2 green".to_string(),
         ];
 
-        let sum = part2(&lines);
+        let (_, sum) = solution(&lines);
         assert_eq!(2286, sum);
     }
 
@@ -96,7 +78,7 @@ mod tests {
     fn test_2_single() {
         let lines = vec!["Game 1: 3 blue, 4 red; 1 red, 2 green, 6 blue; 2 green".to_string()];
 
-        let sum = part2(&lines);
+        let (_, sum) = solution(&lines);
         assert_eq!(48, sum);
     }
 }
