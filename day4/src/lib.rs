@@ -8,12 +8,21 @@ pub fn solutions(lines: &[impl AsRef<str>]) -> (u32, u32) {
     let mut sum = 0;
     let mut copies: Vec<u32> = vec![1; lines.len()];
 
-    lines.iter().map(|line| {
-        let line: &str = line.as_ref();
-        let no_header = line.split_once(':').unwrap().1;
-        let (winning, my_nums) = no_header.split_once('|').unwrap();
+    // These are the same across the whole file
+    let (colon_idx, pipe_idx) = {
+        let line = lines[0].as_ref().as_bytes();
+        let colon_idx = line.iter().position(|&c| c == b':').unwrap();
+        let pipe_idx = line.iter().position(|&c| c == b'|').unwrap();
 
-        (parse_ints(winning.as_bytes()) & parse_ints(my_nums.as_bytes())).count_ones()
+        (colon_idx, pipe_idx)
+    };
+
+    lines.iter().map(|line| {
+        let line = line.as_ref().as_bytes();
+        let winning = &line[colon_idx + 1..pipe_idx];
+        let my_nums = &line[pipe_idx + 1..];
+
+        (parse_ints(winning) & parse_ints(my_nums)).count_ones()
     }).enumerate().for_each(|(idx, count)| {
         let reps = copies[idx];
         match count {
