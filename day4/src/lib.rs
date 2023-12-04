@@ -23,9 +23,9 @@ pub fn solutions(lines: &[impl AsRef<str>]) -> (u32, u32) {
         let my_nums = &line[pipe_idx + 1..];
 
         (parse_ints(winning) & parse_ints(my_nums)).count_ones()
-    }).enumerate().for_each(|(idx, count)| {
+    }).enumerate().for_each(|(idx, score)| {
         let reps = copies[idx];
-        match count {
+        match score {
             0 => {}
             n => {
                 sum += 1 << (n - 1);
