@@ -1,11 +1,8 @@
 use std::cmp;
+use std::io;
 use std::io::BufRead;
-use std::{
-    cmp::Ordering,
-    io,
-};
 
-#[derive(Debug, PartialOrd, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 struct MapEntry {
     pub start: usize,
     pub end: usize,
@@ -37,23 +34,24 @@ impl MapEntry {
 }
 
 struct Map {
-    entries: Vec<MapEntry>
+    entries: Vec<MapEntry>,
 }
 
 impl Map {
     pub fn new() -> Self {
-        Self {
-            entries: vec![]
-        }
+        Self { entries: vec![] }
     }
 
     pub fn add(&mut self, entry: MapEntry) {
         self.entries.push(entry);
-        self.entries.sort();
+    }
+
+    pub fn sort(&mut self) {
+        self.entries.sort_by_key(|e| e.start);
     }
 
     fn map_id(&self, id: usize) -> usize {
-        for e in self.entries.iter() {
+        for e in &self.entries {
             if let Some(id) = e.map(id) {
                 return id;
             }
@@ -67,40 +65,36 @@ impl Map {
         let mut start = interval.0;
         let mut end = 0;
 
-        self.entries.iter().skip_while(|entry| {
-            entry.end < interval.0
-        }).take_while(|entry| {
-            interval.1 >= entry.start
-        }).for_each(|entry| {
-            debug_assert_ne!(remaining.0, remaining.1);
+        self.entries
+            .iter()
+            .skip_while(|entry| entry.end < interval.0)
+            .take_while(|entry| interval.1 >= entry.start)
+            .for_each(|entry| {
+                debug_assert_ne!(remaining.0, remaining.1);
 
-            start = cmp::max(remaining.0, entry.start);
-            if start > remaining.0 {
-                // handle remainder
-                out.push((remaining.0, start));
-            }
+                start = cmp::max(remaining.0, entry.start);
+                if start > remaining.0 {
+                    // handle remainder
+                    out.push((remaining.0, start));
+                }
 
-            end = cmp::min(remaining.1, entry.end);
-            remaining.0 = end;
-            out.push((start + entry.dest - entry.start, end + entry.dest - entry.start));
-        });
+                end = cmp::min(remaining.1, entry.end);
+                remaining.0 = end;
+                out.push((
+                    start + entry.dest - entry.start,
+                    end + entry.dest - entry.start,
+                ));
+            });
         if remaining.0 != remaining.1 {
             out.push(remaining);
         }
-        
+
         if out.is_empty() {
             vec![interval]
         } else {
-            out.sort();
+            out.sort_unstable();
             out
         }
-    }
-}
-
-
-impl Ord for MapEntry {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.start.cmp(&other.start)
     }
 }
 
@@ -133,6 +127,8 @@ fn generate_maps(lines: &[String]) -> Vec<Map> {
         maps[idx].add(map_entry);
     }
 
+    maps.iter_mut().for_each(Map::sort);
+
     maps
 }
 
@@ -144,15 +140,10 @@ fn solution1(lines: &[String]) -> usize {
 
     seeds
         .into_iter()
-        .map(|s| {
-            maps.iter().fold(s, |s, map| {
-                map.map_id(s)
-            })
-        })
+        .map(|s| maps.iter().fold(s, |s, map| map.map_id(s)))
         .min()
         .unwrap()
 }
-
 
 fn solution2(lines: &[String]) -> usize {
     let seeds_line = &lines[0];
@@ -164,11 +155,13 @@ fn solution2(lines: &[String]) -> usize {
         .chunks_exact(2)
         .map(|chunk| {
             let interval = (chunk[0], chunk[0] + chunk[1]);
-            let mut intervals = maps.iter().fold(vec![interval], |intervals, map| {
-                intervals.into_iter().flat_map(|interval| map.map_interval(interval)).collect()
+            let intervals = maps.iter().fold(vec![interval], |intervals, map| {
+                intervals
+                    .into_iter()
+                    .flat_map(|interval| map.map_interval(interval))
+                    .collect()
             });
-            intervals.sort();
-            intervals[0].0
+            intervals.into_iter().map(|i| i.0).min().unwrap()
         })
         .min()
         .unwrap()
