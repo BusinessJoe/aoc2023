@@ -7,10 +7,11 @@ pub struct Race {
 fn score_race(race: &Race) -> u64 {
     let t: f64 = race.time as f64;
     let d: f64 = race.dist as f64;
-    let min = (0.5 * (t - (t * t - 4.0 * d).sqrt())).floor() + 1.0;
-    let max = (0.5 * (t + (t * t - 4.0 * d).sqrt())).ceil() - 1.0;
+    let disc: f64 = (t * t - 4.0 * d).sqrt();
+    let min = (0.5 * (t - disc)).floor();
+    let max = (0.5 * (t + disc)).ceil();
 
-    1 + max as u64 - min as u64
+    max as u64 - min as u64 - 1
 }
 
 pub fn solution1(races: &[Race]) -> u64 {
