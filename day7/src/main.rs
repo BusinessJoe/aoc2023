@@ -1,69 +1,57 @@
+use std::cmp::Ordering;
 use std::io;
 use std::io::BufRead;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum HandType {
-    Five,
-    Four,
-    FullHouse,
-    Three,
-    TwoPair,
+    OnlyJokers,
+    HighCard,
     OnePair,
-    High,
-    Wild,
+    TwoPair,
+    ThreeOfAKind,
+    FullHouse,
+    FourOfAKind,
+    FiveOfAKind,
 }
 
 impl HandType {
-    pub fn new(vals: &[u8]) -> Self {
-        let mut counts_with_vals: Vec<_> = (0..5).map(|i| 
-            (
-                vals.iter().filter(|&&x| x == vals[i] && x != 0).count(),
-                vals[i],
-            )
-        ).collect();
-        counts_with_vals.sort();
+    pub fn from_cards(cards: &[u8]) -> Self {
+        // The number of occurences of each card number, ignoring jokers.
+        let mut counts: Vec<_> = (0..5)
+            .map(|i| cards.iter().filter(|&&x| x == cards[i] && x != 0).count())
+            .collect();
+        counts.sort();
 
-        let mut hand_type = match counts_with_vals[..] {
-            [(5, _), ..] => Self::Five,
-            [_, (4, _), ..] => Self::Four,
-            [(2, _), _, (3, _), _, _] => Self::FullHouse,
-            [_, _, (3, _), ..] => Self::Three,
-            [_, (2, _), _, (2, _), _] => Self::TwoPair,
-            [.., (2, _), _] => Self::OnePair,
-            [.., (0, _)] => Self::Wild,
-            [..] => Self::High,
+        let mut hand_type = match counts[..] {
+            [5, 5, 5, 5, 5] => Self::FiveOfAKind,
+            [_, 4, 4, 4, 4] => Self::FourOfAKind,
+            [2, 2, 3, 3, 3] => Self::FullHouse,
+            [_, _, 3, 3, 3] => Self::ThreeOfAKind,
+            [_, 2, 2, 2, 2] => Self::TwoPair,
+            [_, _, _, 2, 2] => Self::OnePair,
+            [_, _, _, _, 1] => Self::HighCard,
+            [0, 0, 0, 0, 0] => Self::OnlyJokers,
+            _ => panic!(),
         };
 
-        let num_jokers = vals.iter().filter(|&&x| x == 0).count();
+        let num_jokers = cards.iter().filter(|&&x| x == 0).count();
         for _ in 0..num_jokers {
-            hand_type = hand_type.upgrade();
+            hand_type = hand_type.upgrade_with_joker();
         }
 
         hand_type
     }
 
-    fn upgrade(&self) -> Self {
+    fn upgrade_with_joker(&self) -> Self {
         match self {
-            Self::Wild => Self::High,
-            Self::High => Self::OnePair,
-            Self::OnePair => Self::Three,
+            Self::OnlyJokers => Self::HighCard,
+            Self::HighCard => Self::OnePair,
+            Self::OnePair => Self::ThreeOfAKind,
             Self::TwoPair => Self::FullHouse,
-            Self::Three => Self::Four,
-            Self::Four => Self::Five,
-            Self::FullHouse | Self::Five => panic!(),
-        }
-    }
-
-    fn value(&self) -> usize {
-        match self {
-            Self::Wild => panic!(),
-            Self::High => 0,
-            Self::OnePair => 1,
-            Self::TwoPair => 2,
-            Self::Three => 3,
-            Self::FullHouse => 4,
-            Self::Four => 5,
-            Self::Five => 6,
+            Self::ThreeOfAKind => Self::FourOfAKind,
+            Self::FourOfAKind => Self::FiveOfAKind,
+            // Can't upgrade full house or five of a kind with a joker
+            Self::FullHouse | Self::FiveOfAKind => panic!(),
         }
     }
 }
@@ -71,94 +59,68 @@ impl HandType {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Hand {
     hand_type: HandType,
-    vals: [u8; 5],
+    cards: [u8; 5],
     bid: u32,
 }
 
 impl PartialOrd for Hand {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for Hand {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        match self.hand_type.value().cmp(&other.hand_type.value()) {
-            std::cmp::Ordering::Equal => self.vals.cmp(&other.vals),
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.hand_type.cmp(&other.hand_type) {
+            Ordering::Equal => self.cards.cmp(&other.cards),
             x => x,
         }
     }
 }
 
-fn map_char(c: char) -> u8 {
+fn map_char(c: char, use_joker: bool) -> u8 {
     match c {
         '2'..='9' => c.to_digit(10).unwrap().try_into().unwrap(),
         'T' => 10,
-        'J' => 11,
+        'J' => {
+            if use_joker {
+                0
+            } else {
+                11
+            }
+        }
         'Q' => 12,
         'K' => 13,
         'A' => 14,
-        _ => panic!("{}", c),
-    }
-}
-
-fn map_char_joker(c: char) -> u8 {
-    match c {
-        '2'..='9' => c.to_digit(10).unwrap().try_into().unwrap(),
-        'T' => 10,
-        'J' => 0,
-        'Q' => 12,
-        'K' => 13,
-        'A' => 14,
-        _ => panic!("{}", c),
+        _ => panic!(),
     }
 }
 
 impl Hand {
-    pub fn parse(line: &str, jokers: bool) -> Self {
-        let (vals_str, bid_str) = line.split_once(' ').unwrap();
-        let vals: [u8; 5] = vals_str
+    pub fn parse(line: &str, use_joker: bool) -> Self {
+        let (cards_str, bid_str) = line.split_once(' ').unwrap();
+        let cards: [u8; 5] = cards_str
             .chars()
-            .map(|c| {
-                if jokers {
-                    map_char_joker(c)
-                } else {
-                    map_char(c)
-                }
-            })
+            .map(|c| map_char(c, use_joker))
             .collect::<Vec<u8>>()
             .try_into()
             .unwrap();
         let bid: u32 = bid_str.parse().unwrap();
 
-        let hand_type = HandType::new(&vals);
+        let hand_type = HandType::from_cards(&cards);
 
         Self {
             hand_type,
-            vals,
+            cards,
             bid,
         }
     }
 }
 
-fn solution1(lines: impl IntoIterator<Item = impl AsRef<str>>) -> u32 {
+fn solution(lines: impl IntoIterator<Item = impl AsRef<str>>, use_joker: bool) -> u32 {
     let mut hands: Vec<Hand> = lines
         .into_iter()
-        .map(|line| Hand::parse(line.as_ref(), false))
-        .collect();
-    hands.sort();
-
-    hands
-        .into_iter()
-        .enumerate()
-        .map(|(i, hand)| hand.bid * u32::try_from(i + 1).unwrap())
-        .sum()
-}
-
-fn solution2(lines: impl IntoIterator<Item = impl AsRef<str>>) -> u32 {
-    let mut hands: Vec<Hand> = lines
-        .into_iter()
-        .map(|line| Hand::parse(line.as_ref(), true))
+        .map(|line| Hand::parse(line.as_ref(), use_joker))
         .collect();
     hands.sort();
 
@@ -173,8 +135,8 @@ fn main() {
     let stdin = io::stdin();
     let lines: Vec<String> = stdin.lock().lines().map(Result::unwrap).collect();
 
-    let p1 = solution1(&lines);
-    let p2 = solution2(lines);
+    let p1 = solution(&lines, false);
+    let p2 = solution(&lines, true);
     println!("Part 1: {p1}");
     println!("Part 2: {p2}");
 }
