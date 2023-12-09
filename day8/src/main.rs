@@ -1,19 +1,19 @@
 use std::collections::{HashMap, HashSet};
-use std::io::BufRead;
+use std::io::Read;
 use std::{cmp, io};
 
-type Map = HashMap<String, (String, String)>;
+type Map<'a> = HashMap<&'a str, (&'a str, &'a str)>;
 
 enum Direction {
     Left,
     Right,
 }
 
-fn parse_line(line: &str) -> (String, String, String) {
+fn parse_line(line: &str) -> (&str, &str, &str) {
     (
-        line[0..3].to_string(),
-        line[7..10].to_string(),
-        line[12..15].to_string(),
+        &line[0..3],
+        &line[7..10],
+        &line[12..15],
     )
 }
 
@@ -30,17 +30,17 @@ fn parse_dirs(line: &str) -> Vec<Direction> {
         .collect()
 }
 
-fn parse_map(lines: impl IntoIterator<Item = impl AsRef<str>>) -> Map {
+fn parse_map<'a>(lines: impl IntoIterator<Item = &'a str>) -> Map<'a> {
     lines
         .into_iter()
-        .map(|line| parse_line(line.as_ref()))
+        .map(parse_line)
         .map(|(name, left, right)| (name, (left, right)))
         .collect()
 }
 
-fn solution1(lines: impl IntoIterator<Item = impl AsRef<str>>) -> u32 {
+fn solution1<'a>(lines: impl IntoIterator<Item = &'a str>) -> usize {
     let mut lines = lines.into_iter();
-    let dirs = parse_dirs(lines.next().unwrap().as_ref());
+    let dirs = parse_dirs(lines.next().unwrap());
     let map = parse_map(lines.skip(1));
 
     let mut name = "AAA";
@@ -55,13 +55,16 @@ fn solution1(lines: impl IntoIterator<Item = impl AsRef<str>>) -> u32 {
         i += 1;
     }
 
-    i.try_into().unwrap()
+    i
 }
 
 #[derive(Debug)]
 struct Cycle {
-    period_len: usize,
+    /// Initial pattern of Zs before the cycle starts looping
     head_zees: Vec<bool>,
+    /// Length of this cycle's loop
+    period: usize,
+    /// Positions of Zs inside the cycle's loop
     periodic_zees: HashSet<usize>,
 }
 
@@ -70,7 +73,7 @@ impl Cycle {
         if i < self.head_zees.len() {
             self.head_zees[i]
         } else {
-            let idx = (i - self.head_zees.len()) % self.period_len;
+            let idx = (i - self.head_zees.len()) % self.period;
             self.periodic_zees.contains(&idx)
         }
     }
@@ -81,10 +84,10 @@ fn build_cycle(start_name: &str, map: &Map, dirs: &[Direction]) -> Cycle {
     let mut zees: Vec<bool> = Vec::new();
 
     let mut idx = 0;
-    let mut seen: HashMap<String, usize> = HashMap::new();
+    let mut seen: HashMap<&str, usize> = HashMap::new();
 
     while seen.get(name).is_none() {
-        seen.insert(name.to_string(), idx);
+        seen.insert(name, idx);
         for dir in dirs {
             zees.push(name.ends_with('Z'));
             let (left, right) = map.get(name).unwrap();
@@ -97,19 +100,19 @@ fn build_cycle(start_name: &str, map: &Map, dirs: &[Direction]) -> Cycle {
     }
 
     let split_idx = seen.get(name).unwrap();
-    let period_len = idx - split_idx;
+    let period = idx - split_idx;
     let periodic_zees_vec = zees.split_off(*split_idx);
-    debug_assert_eq!(period_len, periodic_zees_vec.len());
-    let mut periodic_zees = HashSet::new();
-    for (i, b) in periodic_zees_vec.into_iter().enumerate() {
-        if b {
-            periodic_zees.insert(i);
-        }
-    }
+    debug_assert_eq!(period, periodic_zees_vec.len());
+
+    let periodic_zees: HashSet<usize> = periodic_zees_vec
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, b)| if b { Some(i) } else { None })
+        .collect();
 
     debug_assert_ne!(0, periodic_zees.len());
     Cycle {
-        period_len,
+        period,
         periodic_zees,
         head_zees: zees,
     }
@@ -124,26 +127,22 @@ fn merge_cycles(c1: &Cycle, c2: &Cycle) -> Cycle {
         head_zees.push(c1.zees(i) & c2.zees(i));
     }
 
-    let period_len = num::integer::lcm(c1.period_len, c2.period_len);
-    let reps = period_len / c1.period_len;
+    let period = num::integer::lcm(c1.period, c2.period);
+    let reps = period / c1.period;
     for r in 0..reps {
         for idx in &c1.periodic_zees {
-            if c2.zees(head_len + idx + r * c1.period_len) {
-                periodic_zees.insert(idx + r * c1.period_len);
+            if c2.zees(head_len + idx + r * c1.period) {
+                periodic_zees.insert(idx + r * c1.period);
             }
         }
     }
 
-    Cycle {
-        period_len,
-        head_zees,
-        periodic_zees,
-    }
+    Cycle { head_zees, period, periodic_zees }
 }
 
-fn solution2(lines: impl IntoIterator<Item = impl AsRef<str>>) -> u64 {
+fn solution2<'a>(lines: impl IntoIterator<Item = &'a str>) -> usize {
     let mut lines = lines.into_iter();
-    let dirs = parse_dirs(lines.next().unwrap().as_ref());
+    let dirs = parse_dirs(lines.next().unwrap());
     let map = parse_map(lines.skip(1));
     let names = map.keys().filter(|name| name.ends_with('A'));
 
@@ -155,20 +154,19 @@ fn solution2(lines: impl IntoIterator<Item = impl AsRef<str>>) -> u64 {
 
     // Search cycle for answer
     if let Some(idx) = final_cycle.head_zees.iter().position(|&x| x) {
-        idx.try_into().unwrap()
+        idx
     } else {
-        (final_cycle.head_zees.len() + final_cycle.periodic_zees.iter().min().unwrap())
-            .try_into()
-            .unwrap()
+        final_cycle.head_zees.len() + final_cycle.periodic_zees.iter().min().unwrap()
     }
 }
 
 fn main() {
     let stdin = io::stdin();
-    let lines: Vec<String> = stdin.lock().lines().map(Result::unwrap).collect();
+    let mut input: String = String::new();
+    stdin.lock().read_to_string(&mut input).unwrap();
 
-    let p1 = solution1(&lines);
+    let p1 = solution1(input.lines());
     println!("Part 1: {p1}");
-    let p2 = solution2(&lines);
+    let p2 = solution2(input.lines());
     println!("Part 2: {p2}");
 }
