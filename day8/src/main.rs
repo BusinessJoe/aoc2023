@@ -17,13 +17,8 @@ fn parse_line(line: &str) -> (String, String, String) {
     )
 }
 
-fn solution1(lines: impl IntoIterator<Item = impl AsRef<str>>) -> u32 {
-    let mut lines = lines.into_iter();
-    let dirs: Vec<Direction> = lines
-        .next()
-        .unwrap()
-        .as_ref()
-        .as_bytes()
+fn parse_dirs(line: &str) -> Vec<Direction> {
+    line.as_bytes()
         .iter()
         .map(|&c| {
             if c == b'L' {
@@ -32,17 +27,23 @@ fn solution1(lines: impl IntoIterator<Item = impl AsRef<str>>) -> u32 {
                 Direction::Right
             }
         })
-        .collect();
+        .collect()
+}
 
-    let mut map: Map = HashMap::new();
+fn parse_map(lines: impl IntoIterator<Item = impl AsRef<str>>) -> Map {
     lines
-        .skip(1)
+        .into_iter()
         .map(|line| parse_line(line.as_ref()))
-        .for_each(|(name, left, right)| {
-            map.insert(name, (left, right));
-        });
+        .map(|(name, left, right)| (name, (left, right)))
+        .collect()
+}
 
-    let mut name = &"AAA".to_string();
+fn solution1(lines: impl IntoIterator<Item = impl AsRef<str>>) -> u32 {
+    let mut lines = lines.into_iter();
+    let dirs = parse_dirs(lines.next().unwrap().as_ref());
+    let map = parse_map(lines.skip(1));
+
+    let mut name = "AAA";
     let mut i = 0;
     while name != "ZZZ" {
         let dir = &dirs[i % dirs.len()];
@@ -55,10 +56,6 @@ fn solution1(lines: impl IntoIterator<Item = impl AsRef<str>>) -> u32 {
     }
 
     i.try_into().unwrap()
-}
-
-fn solved(names: &[String]) -> bool {
-    names.into_iter().all(|n| n.ends_with('Z'))
 }
 
 #[derive(Debug)]
@@ -79,25 +76,27 @@ impl Cycle {
     }
 }
 
-fn build_cycle(mut name: String, map: &Map, dirs: &[Direction]) -> Cycle {
+fn build_cycle(start_name: &str, map: &Map, dirs: &[Direction]) -> Cycle {
+    let mut name = start_name;
     let mut zees: Vec<bool> = Vec::new();
 
     let mut idx = 0;
     let mut seen: HashMap<String, usize> = HashMap::new();
-    while seen.get(&name).is_none() {
+
+    while seen.get(name).is_none() {
         seen.insert(name.to_string(), idx);
         for dir in dirs {
             zees.push(name.ends_with('Z'));
-            let (left, right) = map.get(&name).unwrap();
+            let (left, right) = map.get(name).unwrap();
             name = match dir {
-                Direction::Left => left.clone(),
-                Direction::Right => right.clone(),
+                Direction::Left => left,
+                Direction::Right => right,
             };
             idx += 1;
         }
     }
 
-    let split_idx = seen.get(&name).unwrap();
+    let split_idx = seen.get(name).unwrap();
     let period_len = idx - split_idx;
     let periodic_zees_vec = zees.split_off(*split_idx);
     debug_assert_eq!(period_len, periodic_zees_vec.len());
@@ -144,48 +143,24 @@ fn merge_cycles(c1: &Cycle, c2: &Cycle) -> Cycle {
 
 fn solution2(lines: impl IntoIterator<Item = impl AsRef<str>>) -> u64 {
     let mut lines = lines.into_iter();
-    let dirs: Vec<Direction> = lines
-        .next()
-        .unwrap()
-        .as_ref()
-        .as_bytes()
-        .iter()
-        .map(|&c| {
-            if c == b'L' {
-                Direction::Left
-            } else {
-                Direction::Right
-            }
-        })
-        .collect();
+    let dirs = parse_dirs(lines.next().unwrap().as_ref());
+    let map = parse_map(lines.skip(1));
+    let names = map.keys().filter(|name| name.ends_with('A'));
 
-    let mut map: HashMap<String, (String, String)> = HashMap::new();
-    let mut names: Vec<String> = Vec::new();
-
-    lines
-        .skip(1)
-        .map(|line| parse_line(line.as_ref()))
-        .for_each(|(name, left, right)| {
-            if name.ends_with('A') {
-                names.push(name.clone());
-            }
-            map.insert(name, (left, right));
-        });
-
-    // Build loop for each name
+    // Build cycle for each starting name and merge them together
     let final_cycle = names
-        .iter()
-        .map(|name| build_cycle(name.clone(), &map, &dirs))
+        .map(|name| build_cycle(name, &map, &dirs))
         .reduce(|c1, c2| merge_cycles(&c1, &c2))
         .unwrap();
 
-    println!(
-        "looking for answer in cycle with period length {}",
-        final_cycle.period_len
-    );
-    (final_cycle.head_zees.len() + final_cycle.periodic_zees.iter().min().unwrap())
-        .try_into()
-        .unwrap()
+    // Search cycle for answer
+    if let Some(idx) = final_cycle.head_zees.iter().position(|&x| x) {
+        idx.try_into().unwrap()
+    } else {
+        (final_cycle.head_zees.len() + final_cycle.periodic_zees.iter().min().unwrap())
+            .try_into()
+            .unwrap()
+    }
 }
 
 fn main() {
