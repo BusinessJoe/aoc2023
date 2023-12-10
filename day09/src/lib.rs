@@ -1,6 +1,5 @@
-use std::io::{self, Read};
-
-fn gen_coeffs(n: usize) -> Vec<i64> {
+#[must_use]
+pub fn gen_coeffs(n: usize) -> Vec<i64> {
     let mut coeffs = vec![0; n];
     coeffs[n - 1] = i64::try_from(n).unwrap();
     for i in (0..n - 1).rev() {
@@ -11,7 +10,8 @@ fn gen_coeffs(n: usize) -> Vec<i64> {
     coeffs
 }
 
-fn parse_matrix<'a>(lines: impl IntoIterator<Item = &'a str>) -> Vec<Vec<i64>> {
+#[must_use]
+pub fn parse_matrix<'a>(lines: impl IntoIterator<Item = &'a str>) -> Vec<Vec<i64>> {
     lines
         .into_iter()
         .map(|line| {
@@ -22,7 +22,7 @@ fn parse_matrix<'a>(lines: impl IntoIterator<Item = &'a str>) -> Vec<Vec<i64>> {
         .collect()
 }
 
-fn solution1<'a>(lines: impl IntoIterator<Item = &'a str>) -> i64 {
+pub fn solution1<'a>(lines: impl IntoIterator<Item = &'a str>) -> i64 {
     let matrix = parse_matrix(lines);
 
     // Assume that each line has the same amount of numbers
@@ -39,8 +39,30 @@ fn solution1<'a>(lines: impl IntoIterator<Item = &'a str>) -> i64 {
         .sum()
 }
 
+fn extrapolate_history(history: &[i32]) -> i32 {
+    let diffs: Vec<i32> = history.windows(2).map(|win| win[1] - win[0]).collect();
+    if diffs.iter().all(|&d| d == 0) {
+        history[0]
+    } else {
+        history[history.len() - 1] + extrapolate_history(&diffs)
+    }
+}
+
+pub fn solution1_fd<'a>(lines: impl IntoIterator<Item = &'a str>) -> i32 {
+    lines
+        .into_iter()
+        .map(|line| {
+            let history: Vec<i32> = line
+                .split_ascii_whitespace()
+                .map(|s| s.parse::<i32>().unwrap())
+                .collect();
+            extrapolate_history(&history)
+        })
+    .sum()
+}
+
 /// Literally just part 1 but I reverse the order of numbers in each line
-fn solution2<'a>(lines: impl IntoIterator<Item = &'a str>) -> i64 {
+pub fn solution2<'a>(lines: impl IntoIterator<Item = &'a str>) -> i64 {
     let matrix = parse_matrix(lines);
 
     // Assume that each line has the same amount of numbers
@@ -58,26 +80,30 @@ fn solution2<'a>(lines: impl IntoIterator<Item = &'a str>) -> i64 {
         .sum()
 }
 
-fn main() {
-    let stdin = io::stdin();
-    let mut input: String = String::new();
-    stdin.lock().read_to_string(&mut input).unwrap();
-
-    let p1 = solution1(input.lines());
-    let p2 = solution2(input.lines());
-    println!("Part 1: {p1}");
-    println!("Part 2: {p2}");
-}
 
 #[cfg(test)]
 mod tests {
-    use crate::{solution1, solution2};
+    use crate::{solution1, solution2, solution1_fd};
 
     #[test]
     fn test_example_1() {
         let input = ["0 3 6 9 12 15", "1 3 6 10 15 21", "10 13 16 21 30 45"];
         let p1 = solution1(input);
         assert_eq!(114, p1);
+    }
+
+    #[test]
+    fn test_part_1() {
+        let input = include_str!("../input.txt");
+        let p1 = solution1(input.lines());
+        assert_eq!(1637452029, p1);
+    }
+
+    #[test]
+    fn test_part_1_fd() {
+        let input = include_str!("../input.txt");
+        let p1 = solution1_fd(input.lines());
+        assert_eq!(1637452029, p1);
     }
 
     #[test]
