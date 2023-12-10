@@ -1,6 +1,5 @@
 use std::{
-    cmp,
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     io::{self, Read},
 };
 
@@ -13,7 +12,7 @@ enum Dir {
 }
 
 impl Dir {
-    fn opposite(&self) -> Self {
+    fn opposite(self) -> Self {
         match self {
             Self::North => Self::South,
             Self::East => Self::West,
@@ -22,7 +21,7 @@ impl Dir {
         }
     }
 
-    fn step(&self, (row, col): (usize, usize)) -> (i32, i32) {
+    fn step(self, (row, col): (usize, usize)) -> (i32, i32) {
         let row: i32 = row.try_into().unwrap();
         let col: i32 = col.try_into().unwrap();
         match self {
@@ -47,7 +46,7 @@ enum Tile {
 }
 
 impl Tile {
-    fn outgoing(&self, incoming: Dir) -> Option<Dir> {
+    fn outgoing(self, incoming: Dir) -> Option<Dir> {
         Some(match (self, incoming) {
             (Self::Vertical, Dir::North) => Dir::South,
             (Self::Vertical, Dir::South) => Dir::North,
@@ -65,7 +64,7 @@ impl Tile {
         })
     }
 
-    fn connects(&self, incoming: Dir) -> bool {
+    fn connects(self, incoming: Dir) -> bool {
         self.outgoing(incoming).is_some()
     }
 }
@@ -146,17 +145,6 @@ fn find_start(tiles: &[Vec<Tile>]) -> (usize, usize) {
     panic!();
 }
 
-fn find_distances(
-    tiles: &[Vec<Tile>],
-    start: (usize, usize),
-    dir: Dir,
-) -> HashMap<(usize, usize), usize> {
-    LoopIterator::new(tiles, start, dir)
-        .enumerate()
-        .map(|(dist, coord)| (coord, dist))
-        .collect()
-}
-
 // Replace start with appropriate tile.
 fn replace_start(tiles: &mut [Vec<Tile>], (srow, scol): (usize, usize)) {
     let num_rows = tiles.len();
@@ -184,7 +172,7 @@ fn replace_start(tiles: &mut [Vec<Tile>], (srow, scol): (usize, usize)) {
         [Dir::North, Dir::West] => Tile::NorthWest,
         [Dir::South, Dir::East] => Tile::SouthEast,
         [Dir::South, Dir::West] => Tile::SouthWest,
-        _ => panic!("{:?}", connections),
+        _ => panic!("{connections:?}"),
     };
 }
 
@@ -197,32 +185,25 @@ pub fn solution<'a>(lines: impl IntoIterator<Item = &'a str>) -> (usize, usize) 
     // with a regular tile without worrying.
     replace_start(&mut tiles, (srow, scol));
 
-    // Part 1
-    let mut distances = [Dir::North, Dir::South, Dir::East, Dir::West]
-        .into_iter()
-        .filter(|&outgoing| tiles[srow][scol].connects(outgoing))
-        .map(|outgoing| find_distances(&tiles, (srow, scol), outgoing));
-
-    let first = distances.next().unwrap();
-    let second = distances.next().unwrap();
-
-    let p1 = first
-        .iter()
-        .map(|(coord, val)| cmp::min(*val, *second.get(coord).unwrap()))
-        .max()
-        .unwrap();
-
-    // Part 2
-    // First convert non-loop tiles to ground
+    /* Part 1 */
+    // Find a direction that the starting tile points towards...
     let outgoing = [Dir::North, Dir::East, Dir::South, Dir::West]
         .into_iter()
         .find(|&outgoing| tiles[srow][scol].connects(outgoing))
         .unwrap();
-    let coords: HashSet<(usize, usize)> =
+    // ...and get the coords from the loop going in that direction.
+    // We use a hashset because we'll need one for part 2.
+    let loop_coords: HashSet<(usize, usize)> =
         LoopIterator::new(&tiles, (srow, scol), outgoing).collect();
+
+    // The farthest distance will be half of the length of the loop.
+    let p1 = loop_coords.len() / 2;
+
+    /* Part 2 */
+    // First convert non-loop tiles to ground
     for row in 0..num_rows {
         for col in 0..num_cols {
-            if !coords.contains(&(row, col)) {
+            if !loop_coords.contains(&(row, col)) {
                 tiles[row][col] = Tile::Ground;
             }
         }
@@ -239,7 +220,7 @@ pub fn solution<'a>(lines: impl IntoIterator<Item = &'a str>) -> (usize, usize) 
     let mut p2 = 0;
     for row in tiles.iter().take(num_rows) {
         let mut intersections = 0;
-        for tile in row.iter() {
+        for tile in row {
             match tile {
                 Tile::Vertical | Tile::NorthEast | Tile::NorthWest => {
                     intersections += 1;
