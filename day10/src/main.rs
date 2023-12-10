@@ -70,6 +70,50 @@ impl Tile {
     }
 }
 
+struct LoopIterator<'a> {
+    tiles: &'a [Vec<Tile>],
+    start: (usize, usize),
+    curr: (usize, usize),
+    outgoing: Dir,
+    first: bool,
+}
+
+impl<'a> LoopIterator<'a> {
+    fn new(tiles: &'a [Vec<Tile>], start: (usize, usize), outgoing: Dir) -> Self {
+        Self {
+            tiles,
+            start,
+            curr: start,
+            outgoing,
+            first: true,
+        }
+    }
+}
+
+impl<'a> Iterator for LoopIterator<'a> {
+    type Item = (usize, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.first {
+            self.first = false;
+            return Some(self.start);
+        }
+
+        let (r, c) = self.outgoing.step(self.curr);
+        self.curr = (r.try_into().unwrap(), c.try_into().unwrap());
+
+        self.outgoing = self.tiles[self.curr.0][self.curr.1]
+            .outgoing(self.outgoing.opposite())
+            .unwrap();
+
+        if self.curr == self.start {
+            None
+        } else {
+            Some(self.curr)
+        }
+    }
+}
+
 fn parse_tiles<'a>(lines: impl IntoIterator<Item = &'a str>) -> Vec<Vec<Tile>> {
     lines
         .into_iter()
@@ -200,8 +244,8 @@ pub fn solution<'a>(lines: impl IntoIterator<Item = &'a str>) -> (usize, usize) 
     let second = &maps[1];
 
     let p1 = first
-        .into_iter()
-        .map(|(coord, val)| cmp::min(*val, *second.get(&coord).unwrap()))
+        .iter()
+        .map(|(coord, val)| cmp::min(*val, *second.get(coord).unwrap()))
         .max()
         .unwrap();
 
@@ -209,7 +253,6 @@ pub fn solution<'a>(lines: impl IntoIterator<Item = &'a str>) -> (usize, usize) 
 
     // Part 2
     // Convert non-loop tiles to ground
-    let mut tiles = tiles;
     for outgoing in [Dir::North, Dir::East, Dir::South, Dir::West] {
         let (next_row, next_col) = outgoing.step((srow, scol));
         if 0 <= next_row
@@ -238,8 +281,8 @@ pub fn solution<'a>(lines: impl IntoIterator<Item = &'a str>) -> (usize, usize) 
     let tiles = tiles;
 
     // Print tiles for debug
-    for row in 0..num_rows {
-        let row_str: String = tiles[row]
+    for row in tiles.iter().take(num_rows) {
+        let row_str: String = row
             .iter()
             .map(|tile| match tile {
                 Tile::Vertical => '|',
@@ -256,12 +299,12 @@ pub fn solution<'a>(lines: impl IntoIterator<Item = &'a str>) -> (usize, usize) 
     }
 
     let mut p2 = 0;
-    for row in 0..num_rows {
+    for row in tiles.iter().take(num_rows) {
         for col in 0..num_cols {
-            if tiles[row][col] == Tile::Ground {
+            if row[col] == Tile::Ground {
                 let mut count = 0;
                 for i in (0..col).rev() {
-                    match tiles[row][i] {
+                    match row[i] {
                         Tile::Vertical | Tile::NorthWest | Tile::NorthEast => {
                             count += 1;
                         }
@@ -286,4 +329,23 @@ fn main() {
     let (p1, p2) = solution(input.lines());
     println!("Part 1: {p1}");
     println!("Part 2: {p2}");
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::solution;
+
+    #[test]
+    fn part_1() {
+        let input = include_str!("../input.txt").lines();
+        let (p1, _) = solution(input);
+        assert_eq!(6867, p1);
+    }
+
+    #[test]
+    fn part_2() {
+        let input = include_str!("../input.txt").lines();
+        let (_, p2) = solution(input);
+        assert_eq!(595, p2);
+    }
 }
