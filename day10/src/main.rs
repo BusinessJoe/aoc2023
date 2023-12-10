@@ -4,7 +4,7 @@ use std::{
     io::{self, Read},
 };
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum Dir {
     North,
     South,
@@ -151,59 +151,19 @@ fn find_distances(
     start: (usize, usize),
     dir: Dir,
 ) -> HashMap<(usize, usize), usize> {
-    let mut dists = HashMap::new();
-    let mut curr = start;
-    let mut outgoing = dir;
-    let mut next_dist = 1;
-
-    loop {
-        let (r, c) = outgoing.step(curr);
-        curr = (r.try_into().unwrap(), c.try_into().unwrap());
-
-        if curr == start {
-            break;
-        }
-
-        outgoing = tiles[curr.0][curr.1].outgoing(outgoing.opposite()).unwrap();
-        dists.insert(curr, next_dist);
-        next_dist += 1;
-    }
-
-    dists
+    LoopIterator::new(tiles, start, dir)
+        .enumerate()
+        .map(|(dist, coord)| (coord, dist))
+        .collect()
 }
 
-fn find_loop_coords(tiles: &[Vec<Tile>], start: (usize, usize), dir: Dir) -> Vec<(usize, usize)> {
-    let mut coords = vec![start];
-    let mut curr = start;
-    let mut outgoing = dir;
-
-    loop {
-        let (r, c) = outgoing.step(curr);
-        curr = (r.try_into().unwrap(), c.try_into().unwrap());
-
-        if curr == start {
-            break;
-        }
-
-        outgoing = tiles[curr.0][curr.1].outgoing(outgoing.opposite()).unwrap();
-        coords.push(curr);
-    }
-
-    coords
-}
-
-pub fn solution<'a>(lines: impl IntoIterator<Item = &'a str>) -> (usize, usize) {
-    let mut tiles = parse_tiles(lines);
+// Replace start with appropriate tile.
+fn replace_start(tiles: &mut [Vec<Tile>], (srow, scol): (usize, usize)) {
     let num_rows = tiles.len();
     let num_cols = tiles[0].len();
 
-    println!("Part 1");
-
-    // Part 1
-    let (srow, scol) = find_start(&tiles);
-    // Replace start with appropriate tile;
     let mut connections: Vec<Dir> = Vec::new();
-    for outgoing in [Dir::North, Dir::East, Dir::South, Dir::West] {
+    for outgoing in [Dir::North, Dir::South, Dir::East, Dir::West] {
         let (next_row, next_col) = outgoing.step((srow, scol));
         if 0 <= next_row
             && next_row < i32::try_from(num_rows).unwrap()
@@ -215,9 +175,8 @@ pub fn solution<'a>(lines: impl IntoIterator<Item = &'a str>) -> (usize, usize) 
             connections.push(outgoing);
         }
     }
-    debug_assert_eq!(2, connections.len());
-    connections.sort();
     let connections: [Dir; 2] = connections.try_into().unwrap();
+
     tiles[srow][scol] = match connections {
         [Dir::North, Dir::South] => Tile::Vertical,
         [Dir::East, Dir::West] => Tile::Horizontal,
@@ -227,21 +186,23 @@ pub fn solution<'a>(lines: impl IntoIterator<Item = &'a str>) -> (usize, usize) 
         [Dir::South, Dir::West] => Tile::SouthWest,
         _ => panic!("{:?}", connections),
     };
+}
 
-    let mut maps: Vec<HashMap<(usize, usize), usize>> = Vec::new();
+pub fn solution<'a>(lines: impl IntoIterator<Item = &'a str>) -> (usize, usize) {
+    let mut tiles = parse_tiles(lines);
+    let num_rows = tiles.len();
+    let num_cols = tiles[0].len();
+    let (srow, scol) = find_start(&tiles);
+    replace_start(&mut tiles, (srow, scol));
 
-    for outgoing in [Dir::North, Dir::East, Dir::South, Dir::West] {
-        if tiles[srow][scol].connects(outgoing) {
-            let dists = find_distances(&tiles, (srow, scol), outgoing);
-            maps.push(dists);
-        }
-    }
+    // Part 1
+    let mut distances = [Dir::North, Dir::South, Dir::East, Dir::West]
+        .into_iter()
+        .filter(|&outgoing| tiles[srow][scol].connects(outgoing))
+        .map(|outgoing| find_distances(&tiles, (srow, scol), outgoing));
 
-    debug_assert_eq!(2, maps.len());
-    println!("Got distance maps");
-
-    let first = &maps[0];
-    let second = &maps[1];
+    let first = distances.next().unwrap();
+    let second = distances.next().unwrap();
 
     let p1 = first
         .iter()
@@ -249,71 +210,45 @@ pub fn solution<'a>(lines: impl IntoIterator<Item = &'a str>) -> (usize, usize) 
         .max()
         .unwrap();
 
-    println!("Part 2");
-
     // Part 2
-    // Convert non-loop tiles to ground
-    for outgoing in [Dir::North, Dir::East, Dir::South, Dir::West] {
-        let (next_row, next_col) = outgoing.step((srow, scol));
-        if 0 <= next_row
-            && next_row < i32::try_from(num_rows).unwrap()
-            && 0 <= next_col
-            && next_col < i32::try_from(num_cols).unwrap()
-            && tiles[usize::try_from(next_row).unwrap()][usize::try_from(next_col).unwrap()]
-                .connects(outgoing.opposite())
-        {
-            println!("Finding loop coords...");
-            let coords: HashSet<(usize, usize)> = find_loop_coords(&tiles, (srow, scol), outgoing)
-                .into_iter()
-                .collect();
-            println!("Found loop coords");
-
-            for row in 0..num_rows {
-                for col in 0..num_cols {
-                    if !coords.contains(&(row, col)) {
-                        tiles[row][col] = Tile::Ground;
-                    }
-                }
+    // First convert non-loop tiles to ground
+    let outgoing = [Dir::North, Dir::East, Dir::South, Dir::West]
+        .into_iter()
+        .filter(|&outgoing| tiles[srow][scol].connects(outgoing))
+        .next()
+        .unwrap();
+    let coords: HashSet<(usize, usize)> =
+        LoopIterator::new(&tiles, (srow, scol), outgoing).collect();
+    for row in 0..num_rows {
+        for col in 0..num_cols {
+            if !coords.contains(&(row, col)) {
+                tiles[row][col] = Tile::Ground;
             }
-            break;
         }
     }
-    let tiles = tiles;
 
-    // Print tiles for debug
-    for row in tiles.iter().take(num_rows) {
-        let row_str: String = row
-            .iter()
-            .map(|tile| match tile {
-                Tile::Vertical => '|',
-                Tile::Horizontal => '-',
-                Tile::NorthEast => 'L',
-                Tile::Start => 'S',
-                Tile::Ground => '.',
-                Tile::NorthWest => 'J',
-                Tile::SouthWest => '7',
-                Tile::SouthEast => 'F',
-            })
-            .collect();
-        println!("{}", row_str);
-    }
-
+    // To find interior points, we cast a ray from the left edge of the board to the right, keeping
+    // track of the number of times we intersect with the loop. When we find a non-loop point
+    // (which will be Ground since we've previously converted all non-loop points to Ground) we
+    // know it's inside the loop if and only if the number of intersections is odd.
+    //
+    // There's a literal edge case when we encounter a horizontal edge. We bias our ray to the
+    // "upper half" of a tile so that we only intersect with Vertical, NorthEast, and NorthWest
+    // tiles.
     let mut p2 = 0;
     for row in tiles.iter().take(num_rows) {
+        let mut intersections = 0;
         for col in 0..num_cols {
-            if row[col] == Tile::Ground {
-                let mut count = 0;
-                for i in (0..col).rev() {
-                    match row[i] {
-                        Tile::Vertical | Tile::NorthWest | Tile::NorthEast => {
-                            count += 1;
-                        }
-                        _ => {}
+            match row[col] {
+                Tile::Vertical | Tile::NorthEast | Tile::NorthWest => {
+                    intersections += 1;
+                }
+                Tile::Ground => {
+                    if intersections % 2 == 1 {
+                        p2 += 1;
                     }
                 }
-                if count % 2 == 1 {
-                    p2 += 1;
-                }
+                _ => {}
             }
         }
     }
