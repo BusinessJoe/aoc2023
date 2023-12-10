@@ -193,6 +193,8 @@ pub fn solution<'a>(lines: impl IntoIterator<Item = &'a str>) -> (usize, usize) 
     let num_rows = tiles.len();
     let num_cols = tiles[0].len();
     let (srow, scol) = find_start(&tiles);
+    // We have the coordinates of the start tile so we can replace the start tile
+    // with a regular tile without worrying.
     replace_start(&mut tiles, (srow, scol));
 
     // Part 1
@@ -214,8 +216,7 @@ pub fn solution<'a>(lines: impl IntoIterator<Item = &'a str>) -> (usize, usize) 
     // First convert non-loop tiles to ground
     let outgoing = [Dir::North, Dir::East, Dir::South, Dir::West]
         .into_iter()
-        .filter(|&outgoing| tiles[srow][scol].connects(outgoing))
-        .next()
+        .find(|&outgoing| tiles[srow][scol].connects(outgoing))
         .unwrap();
     let coords: HashSet<(usize, usize)> =
         LoopIterator::new(&tiles, (srow, scol), outgoing).collect();
@@ -238,8 +239,8 @@ pub fn solution<'a>(lines: impl IntoIterator<Item = &'a str>) -> (usize, usize) 
     let mut p2 = 0;
     for row in tiles.iter().take(num_rows) {
         let mut intersections = 0;
-        for col in 0..num_cols {
-            match row[col] {
+        for tile in row.iter() {
+            match tile {
                 Tile::Vertical | Tile::NorthEast | Tile::NorthWest => {
                     intersections += 1;
                 }
