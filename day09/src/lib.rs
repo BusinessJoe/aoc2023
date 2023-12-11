@@ -1,12 +1,16 @@
 #[must_use]
 pub fn gen_coeffs(n: usize) -> Vec<i64> {
+    let signed_n: i64 = n.try_into().unwrap();
     let mut coeffs = vec![0; n];
-    coeffs[n - 1] = i64::try_from(n).unwrap();
+    coeffs[n - 1] = signed_n;
+
     for i in (0..n - 1).rev() {
-        let k: i64 = i64::try_from(n).unwrap() - 1 - i64::try_from(i).unwrap();
+        let signed_i: i64 = i.try_into().unwrap();
+        let k: i64 = signed_n - 1 - signed_i;
         // k goes from 1 ..= n-1
-        coeffs[i] = -coeffs[i + 1] * (i64::try_from(n).unwrap() - k) / (k + 1);
+        coeffs[i] = -coeffs[i + 1] * (signed_n - k) / (k + 1);
     }
+
     coeffs
 }
 
