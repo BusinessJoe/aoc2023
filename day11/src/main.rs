@@ -37,12 +37,12 @@ pub fn solution<'a>(lines: impl IntoIterator<Item = &'a str>, scale: usize) -> u
     for galaxy in &mut galaxies {
         for row in empty_rows.iter().rev() {
             if galaxy.0 > *row {
-                galaxy.0 += scale;
+                galaxy.0 += scale - 1;
             }
         }
         for col in empty_cols.iter().rev() {
             if galaxy.1 > *col {
-                galaxy.1 += scale;
+                galaxy.1 += scale - 1;
             }
         }
     }
@@ -62,8 +62,8 @@ fn main() {
     let mut input: String = String::new();
     stdin.lock().read_to_string(&mut input).unwrap();
 
-    let p1 = solution(input.lines(), 1);
-    let p2 = solution(input.lines(), 999_999);
+    let p1 = solution(input.lines(), 2);
+    let p2 = solution(input.lines(), 1_000_000);
     println!("Part 1: {p1}");
     println!("Part 2: {p2}");
 }
