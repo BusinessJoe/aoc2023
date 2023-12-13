@@ -32,8 +32,8 @@ fn transpose(terrain: &Terrain) -> Terrain {
     transposed
 }
 
-/// Returns number of mis-matches.
-fn try_relect_row(row: &[u8], col: usize) -> usize {
+/// Reflect a row across the given column and return the number of mismatches.
+fn count_row_mismatches(row: &[u8], col: usize) -> usize {
     row[0..col]
         .iter()
         .rev()
@@ -42,25 +42,25 @@ fn try_relect_row(row: &[u8], col: usize) -> usize {
         .count()
 }
 
-/// Returns number of mis-matches.
-fn try_reflect(terrain: &Terrain, col: usize) -> usize {
-    terrain.iter().map(|line| try_relect_row(line, col)).sum()
+/// Reflect terrain across the given column and return the number of mismatches.
+fn count_terrain_mismatches(terrain: &Terrain, col: usize) -> usize {
+    terrain
+        .iter()
+        .map(|line| count_row_mismatches(line, col))
+        .sum()
 }
 
 fn find_mirror(terrain: &Terrain, defects: usize) -> usize {
     let cols = terrain[0].len();
-    for col in 1..cols {
-        if try_reflect(terrain, col) == defects {
-            return col;
-        }
-    }
-    0
+    (1..cols)
+        .find(|&col| count_terrain_mismatches(terrain, col) == defects)
+        .unwrap_or(0)
 }
 
 pub fn solution<'a>(lines: impl IntoIterator<Item = &'a str>, defects: usize) -> usize {
     parse_terrain(lines)
-        .into_iter()
-        .map(|t| find_mirror(&t, defects) + 100 * find_mirror(&transpose(&t), defects))
+        .iter()
+        .map(|t| find_mirror(t, defects) + 100 * find_mirror(&transpose(t), defects))
         .sum()
 }
 
@@ -73,4 +73,21 @@ fn main() {
     println!("Part 1: {p1}");
     let p2 = solution(input.lines(), 1);
     println!("Part 2: {p2}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_part_1() {
+        let p1 = solution(include_str!("../input.txt").lines(), 0);
+        assert_eq!(33047, p1);
+    }
+
+    #[test]
+    fn test_part_2() {
+        let p2 = solution(include_str!("../input.txt").lines(), 1);
+        assert_eq!(28806, p2);
+    }
 }
