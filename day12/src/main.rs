@@ -4,13 +4,13 @@ use std::{
 };
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum Symbol {
+enum Symbol {
     Ok,
     Damaged,
     Unknown,
 }
 
-pub fn parse_line(line: &str) -> (Vec<Symbol>, Vec<usize>) {
+fn parse_line(line: &str) -> (Vec<Symbol>, Vec<usize>) {
     let (symbols, nums) = line.split_once(' ').unwrap();
     let symbols: Vec<Symbol> = symbols
         .as_bytes()
@@ -27,10 +27,10 @@ pub fn parse_line(line: &str) -> (Vec<Symbol>, Vec<usize>) {
     (symbols, nums)
 }
 
-pub fn parse_line_2(line: &str) -> (Vec<Symbol>, Vec<usize>) {
+fn parse_line_2(line: &str) -> (Vec<Symbol>, Vec<usize>) {
     let (symbols, nums) = line.split_once(' ').unwrap();
-    let symbols = [(); 5].map(|_| symbols).join("?");
-    let nums = [(); 5].map(|_| nums).join(",");
+    let symbols = [(); 5].map(|()| symbols).join("?");
+    let nums = [(); 5].map(|()| nums).join(",");
     let symbols: Vec<Symbol> = symbols
         .as_bytes()
         .iter()
@@ -46,7 +46,7 @@ pub fn parse_line_2(line: &str) -> (Vec<Symbol>, Vec<usize>) {
     (symbols, nums)
 }
 
-pub fn next_group(symbols: &[Symbol]) -> (usize, usize) {
+fn next_group(symbols: &[Symbol]) -> (usize, usize) {
     let mut i = 0;
     let mut num_ok = 0;
     while i < symbols.len() && symbols[i] == Symbol::Ok {
@@ -65,19 +65,22 @@ pub fn next_group(symbols: &[Symbol]) -> (usize, usize) {
 }
 
 type Cache = HashMap<(usize, usize), usize>;
-pub fn count_possibilities_cached(
+fn count_possibilities_cached(
     symbols: &[Symbol],
     s_idx: usize,
     nums: &[usize],
     n_idx: usize,
     cache: &mut Cache,
 ) -> usize {
+    if let Some(ans) = cache.get(&(s_idx, n_idx)) {
+        return *ans;
+    }
+
     if n_idx >= nums.len() {
         if symbols[s_idx..].contains(&Symbol::Damaged) {
             return 0;
-        } else {
-            return 1;
         }
+        return 1;
     } else if s_idx >= symbols.len() {
         return 0;
     }
@@ -86,74 +89,61 @@ pub fn count_possibilities_cached(
     if num_not_ok == 0 {
         return 0;
     }
-    let target = nums[n_idx];
 
-    if let Some(ans) = cache.get(&(s_idx, n_idx)) {
-        return *ans;
-    }
+    let target = nums[n_idx];
     let ans = if num_not_ok < target {
         if symbols[s_idx + num_ok] == Symbol::Damaged {
             // gg
             0
         } else {
-            count_possibilities_cached(&symbols, s_idx + num_ok + 1, nums, n_idx, cache)
+            count_possibilities_cached(symbols, s_idx + num_ok + 1, nums, n_idx, cache)
+        }
+    } else if symbols[s_idx + num_ok] == Symbol::Damaged {
+        // forced to take next `target` symbols as damaged
+        match symbols.get(s_idx + num_ok + target) {
+            Some(Symbol::Damaged) => 0,
+            None | Some(Symbol::Ok) => {
+                count_possibilities_cached(symbols, s_idx + num_ok + target, nums, n_idx + 1, cache)
+            }
+            Some(Symbol::Unknown) => count_possibilities_cached(
+                symbols,
+                s_idx + num_ok + target + 1,
+                nums,
+                n_idx + 1,
+                cache,
+            ),
         }
     } else {
-        if symbols[s_idx + num_ok] == Symbol::Damaged {
-            // forced to take next `target` symbols as damaged
-            match symbols.get(s_idx + num_ok + target) {
-                Some(Symbol::Damaged) => 0,
-                None | Some(Symbol::Ok) => count_possibilities_cached(
-                    &symbols,
-                    s_idx + num_ok + target,
-                    &nums,
-                    n_idx + 1,
-                    cache,
-                ),
-                Some(Symbol::Unknown) => count_possibilities_cached(
-                    &symbols,
-                    s_idx + num_ok + target + 1,
-                    &nums,
-                    n_idx + 1,
-                    cache,
-                ),
-            }
-        } else {
-            // we have options bc this symbol is unknown
-            let if_ok =
-                count_possibilities_cached(&symbols, s_idx + num_ok + 1, nums, n_idx, cache);
+        // we have options bc this symbol is unknown
+        let if_ok = count_possibilities_cached(symbols, s_idx + num_ok + 1, nums, n_idx, cache);
 
-            // take next `target` symbols as damaged
-            let if_dmged = match symbols.get(s_idx + num_ok + target) {
-                Some(Symbol::Damaged) => 0,
-                None | Some(Symbol::Ok) => count_possibilities_cached(
-                    &symbols,
-                    s_idx + num_ok + target,
-                    &nums,
-                    n_idx + 1,
-                    cache,
-                ),
-                Some(Symbol::Unknown) => count_possibilities_cached(
-                    &symbols,
-                    s_idx + num_ok + target + 1,
-                    &nums,
-                    n_idx + 1,
-                    cache,
-                ),
-            };
-            if_ok + if_dmged
-        }
+        // take next `target` symbols as damaged
+        let if_dmged = match symbols.get(s_idx + num_ok + target) {
+            Some(Symbol::Damaged) => 0,
+            None | Some(Symbol::Ok) => {
+                count_possibilities_cached(symbols, s_idx + num_ok + target, nums, n_idx + 1, cache)
+            }
+            Some(Symbol::Unknown) => count_possibilities_cached(
+                symbols,
+                s_idx + num_ok + target + 1,
+                nums,
+                n_idx + 1,
+                cache,
+            ),
+        };
+        if_ok + if_dmged
     };
 
     cache.insert((s_idx, n_idx), ans);
     ans
 }
 
-pub fn count_possibilities(symbols: &[Symbol], nums: &[usize]) -> usize {
+fn count_possibilities(symbols: &[Symbol], nums: &[usize]) -> usize {
     let mut cache: Cache = Cache::new();
-    count_possibilities_cached(&symbols, 0, &nums, 0, &mut cache)
+    count_possibilities_cached(symbols, 0, nums, 0, &mut cache)
 }
 
+#[must_use]
 pub fn solution_1<'a>(lines: impl IntoIterator<Item = &'a str>) -> usize {
     lines
         .into_iter()
@@ -162,6 +152,7 @@ pub fn solution_1<'a>(lines: impl IntoIterator<Item = &'a str>) -> usize {
         .sum()
 }
 
+#[must_use]
 pub fn solution_2<'a>(lines: impl IntoIterator<Item = &'a str>) -> usize {
     lines
         .into_iter()
@@ -207,38 +198,14 @@ mod tests {
     }
 
     #[test]
-    fn test_a() {
-        let (symbols, nums) = parse_line("???##???..?. 5,1");
-        let x = count_possibilities(&symbols, &nums);
-        assert_eq!(7, x);
-    }
-
-    #[test]
-    fn test_b() {
-        let (symbols, nums) = parse_line("###???.????????.???? 5,2,1,1,1,1");
-        let x = count_possibilities(&symbols, &nums);
-        assert_eq!(34, x);
-    }
-
-    #[test]
-    fn test_c() {
-        let (symbols, nums) = parse_line("..#... 1");
-        let x = count_possibilities(&symbols, &nums);
-        assert_eq!(1, x);
+    fn test_p1() {
+        let p1 = solution_1(include_str!("../input.txt").lines());
+        assert_eq!(7694, p1);
     }
 
     #[test]
     fn test_p2() {
-        let (symbols, nums) =
-            parse_line("???.###????.###????.###????.###????.### 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3");
-        let x = count_possibilities(&symbols, &nums);
-        assert_eq!(1, x);
-    }
-
-    #[test]
-    fn test_p2_a() {
-        let (symbols, nums) = parse_line_2("???.### 1,1,3");
-        let x = count_possibilities(&symbols, &nums);
-        assert_eq!(1, x);
+        let p2 = solution_2(include_str!("../input.txt").lines());
+        assert_eq!(5071883216318, p2);
     }
 }
