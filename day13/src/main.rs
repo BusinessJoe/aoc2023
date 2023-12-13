@@ -17,43 +17,6 @@ fn parse_terrain<'a>(lines: impl IntoIterator<Item = &'a str>) -> Vec<Terrain> {
     all_terrain
 }
 
-fn find_mirror(line: &[u8]) -> u64 {
-    let mut bitset = 0;
-    for i in 1..line.len() {
-        if line[0..i]
-            .iter()
-            .rev()
-            .zip(line[i..].iter())
-            .all(|(a, b)| a == b)
-        {
-            bitset |= 1 << i;
-        }
-    }
-    bitset
-}
-
-fn find_column_mirror(terrain: &Terrain) -> usize {
-    let bitset = terrain
-        .iter()
-        .map(|line| find_mirror(line))
-        .reduce(|acc, x| acc & x)
-        .unwrap();
-    if bitset == 0 {
-        0
-    } else {
-        let cols = terrain[0].len();
-        for i in 0..=cols / 2 {
-            if bitset & (1 << cols / 2 + i) != 0 {
-                return cols / 2 + i;
-            }
-            if bitset & (1 << cols / 2 - 1 - i) != 0 {
-                return cols / 2 - 1 - i;
-            }
-        }
-        panic!();
-    }
-}
-
 fn transpose(terrain: &Terrain) -> Terrain {
     let rows = terrain.len();
     let cols = terrain[0].len();
@@ -69,25 +32,36 @@ fn transpose(terrain: &Terrain) -> Terrain {
     transposed
 }
 
-pub fn solution_1<'a>(lines: impl IntoIterator<Item = &'a str>) -> usize {
-    let all_terrain = parse_terrain(lines);
+/// Returns number of mis-matches.
+fn try_relect_row(row: &[u8], col: usize) -> usize {
+    row[0..col]
+        .iter()
+        .rev()
+        .zip(row[col..].iter())
+        .filter(|(a, b)| a != b)
+        .count()
+}
 
-    let mut total = 0;
-    for terrain in all_terrain {
-        let col = find_column_mirror(&terrain);
-        println!("col {col}");
-        total += col;
+/// Returns number of mis-matches.
+fn try_reflect(terrain: &Terrain, col: usize) -> usize {
+    terrain.iter().map(|line| try_relect_row(line, col)).sum()
+}
 
-        let row = find_column_mirror(&transpose(&terrain));
-        println!("row {row}");
-        total += row * 100;
-
-        println!("");
-        if row != 0 && col != 0 {
-            panic!();
+fn find_mirror(terrain: &Terrain, defects: usize) -> usize {
+    let cols = terrain[0].len();
+    for col in 1..cols {
+        if try_reflect(terrain, col) == defects {
+            return col;
         }
     }
-    total
+    0
+}
+
+pub fn solution<'a>(lines: impl IntoIterator<Item = &'a str>, defects: usize) -> usize {
+    parse_terrain(lines)
+        .into_iter()
+        .map(|t| find_mirror(&t, defects) + 100 * find_mirror(&transpose(&t), defects))
+        .sum()
 }
 
 fn main() {
@@ -95,25 +69,8 @@ fn main() {
     let mut input: String = String::new();
     stdin.lock().read_to_string(&mut input).unwrap();
 
-    let p1 = solution_1(input.lines());
+    let p1 = solution(input.lines(), 0);
     println!("Part 1: {p1}");
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_find_mirror() {
-        let bitset = find_mirror("######....#######".as_bytes());
-        let bitset2 = find_mirror("..#...####...#..#".as_bytes());
-        assert_ne!(0, bitset & bitset2);
-    }
-
-    #[test]
-    fn test_column_mirror() {
-        let terrain = &parse_terrain(["######....#######", "..#...####...#..#"])[0];
-        let mirror = find_column_mirror(terrain);
-        assert_ne!(0, mirror);
-    }
+    let p2 = solution(input.lines(), 1);
+    println!("Part 2: {p2}");
 }
