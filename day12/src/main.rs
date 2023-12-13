@@ -72,57 +72,43 @@ fn count_possibilities_cached(
     n_idx: usize,
     cache: &mut Cache,
 ) -> usize {
-    if let Some(ans) = cache.get(&(s_idx, n_idx)) {
-        return *ans;
-    }
-
-    if n_idx >= nums.len() {
+    if n_idx == nums.len() && s_idx == symbols.len() {
+        return 1;
+    } else if s_idx == symbols.len() {
+        return 0;
+    } else if n_idx == nums.len() {
+        // We've exhausted nums, so we fail to solve the puzzle if there are any
+        // damaged symbols left.
         if symbols[s_idx..].contains(&Symbol::Damaged) {
             return 0;
         }
         return 1;
-    } else if s_idx >= symbols.len() {
-        return 0;
     }
 
-    let (num_ok, num_not_ok) = next_group(&symbols[s_idx..]);
-    if num_not_ok == 0 {
-        return 0;
+    if let Some(ans) = cache.get(&(s_idx, n_idx)) {
+        return *ans;
     }
 
     let target = nums[n_idx];
+    let (num_ok, num_not_ok) = next_group(&symbols[s_idx..]);
+
     let ans = if num_not_ok < target {
-        if symbols[s_idx + num_ok] == Symbol::Damaged {
-            // gg
+        // The current group cannot satisfy `target`. We therefore require that the "not ok" part
+        // is all unknowns so that they can all be set to Ok. Otherwise the puzzle is insoluble.
+        if symbols[s_idx + num_ok..s_idx + num_ok + num_not_ok].contains(&Symbol::Damaged) {
             0
         } else {
-            count_possibilities_cached(symbols, s_idx + num_ok + 1, nums, n_idx, cache)
-        }
-    } else if symbols[s_idx + num_ok] == Symbol::Damaged {
-        // forced to take next `target` symbols as damaged
-        match symbols.get(s_idx + num_ok + target) {
-            Some(Symbol::Damaged) => 0,
-            None | Some(Symbol::Ok) => {
-                count_possibilities_cached(symbols, s_idx + num_ok + target, nums, n_idx + 1, cache)
-            }
-            Some(Symbol::Unknown) => count_possibilities_cached(
-                symbols,
-                s_idx + num_ok + target + 1,
-                nums,
-                n_idx + 1,
-                cache,
-            ),
+            count_possibilities_cached(symbols, s_idx + num_ok + num_not_ok, nums, n_idx, cache)
         }
     } else {
-        // we have options bc this symbol is unknown
-        let if_ok = count_possibilities_cached(symbols, s_idx + num_ok + 1, nums, n_idx, cache);
-
-        // take next `target` symbols as damaged
+        // Both Damaged and Unknown count the damaged case.
+        // Take next `target` symbols as damaged.
         let if_dmged = match symbols.get(s_idx + num_ok + target) {
+            // If the symbol right after the group is damaged, we're forced to have `target+1`
+            // damaged symbols in a row.
             Some(Symbol::Damaged) => 0,
-            None | Some(Symbol::Ok) => {
-                count_possibilities_cached(symbols, s_idx + num_ok + target, nums, n_idx + 1, cache)
-            }
+            // If the symbol right after the group is unknown, we're forced to make it Ok due to
+            // the above comment. We consume `target+1` non-ok symbols.
             Some(Symbol::Unknown) => count_possibilities_cached(
                 symbols,
                 s_idx + num_ok + target + 1,
@@ -130,8 +116,21 @@ fn count_possibilities_cached(
                 n_idx + 1,
                 cache,
             ),
+            // If the symbol right after the group doesn't exist or is Ok, we consume `target`
+            // non-ok symbols to satisfy target.
+            None | Some(Symbol::Ok) => {
+                count_possibilities_cached(symbols, s_idx + num_ok + target, nums, n_idx + 1, cache)
+            }
         };
-        if_ok + if_dmged
+
+        if symbols[s_idx + num_ok] == Symbol::Unknown {
+            // Unknown should consider the possiblity of being ok
+            let if_ok = count_possibilities_cached(symbols, s_idx + num_ok + 1, nums, n_idx, cache);
+
+            if_ok + if_dmged
+        } else {
+            if_dmged
+        }
     };
 
     cache.insert((s_idx, n_idx), ans);
