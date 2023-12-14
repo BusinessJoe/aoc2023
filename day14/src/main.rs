@@ -37,10 +37,10 @@ fn shift(grid: &mut [Vec<u8>], coords: &[(usize, usize)]) {
 
 fn calculate_col_load(grid: &Vec<Vec<u8>>, col: usize) -> usize {
     let mut load = 0;
-    let rows = grid.len();
-    for row in 0..rows {
-        if grid[row][col] == b'O' {
-            load += rows - row;
+    let num_rows = grid.len();
+    for (row_idx, row) in grid.iter().enumerate() {
+        if row[col] == b'O' {
+            load += num_rows - row_idx;
         }
     }
     load
@@ -83,7 +83,7 @@ fn cycle_grid(grid: &mut Vec<Vec<u8>>) {
     }
 }
 
-pub fn print_grid(grid: &Vec<Vec<u8>>) {
+pub fn print_grid(grid: &[Vec<u8>]) {
     let grid_rows: Vec<String> = grid
         .iter()
         .map(|row| {
@@ -161,4 +161,21 @@ fn main() {
     println!("Part 1: {p1}");
     let p2 = solution_2(input.lines());
     println!("Part 2: {p2}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_part_1() {
+        let p1 = solution_1(include_str!("../input.txt").lines());
+        assert_eq!(105623, p1);
+    }
+
+    #[test]
+    fn test_part_2() {
+        let p2 = solution_2(include_str!("../input.txt").lines());
+        assert_eq!(98029, p2);
+    }
 }
