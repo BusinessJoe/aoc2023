@@ -14,23 +14,28 @@ fn shift(grid: &mut [Vec<u8>], coords: &[(usize, usize)]) {
     let mut next_idx = 0;
     let mut open_len = 0;
     for (idx, &(row, col)) in coords.iter().enumerate() {
-        if grid[row][col] == b'O' {
-            if open_len > 0 {
-                // place rock
-                grid[row][col] = b'.';
-                let (next_row, next_col) = coords[next_idx];
-                grid[next_row][next_col] = b'O';
-                next_idx += 1;
-            } else {
-                // keep rock in place
+        match grid[row][col] {
+            b'O' => {
+                if open_len > 0 {
+                    // place rock
+                    grid[row][col] = b'.';
+                    let (next_row, next_col) = coords[next_idx];
+                    grid[next_row][next_col] = b'O';
+                    next_idx += 1;
+                } else {
+                    // keep rock in place
+                    next_idx = idx + 1;
+                    open_len = 0;
+                }
+            }
+            b'#' => {
                 next_idx = idx + 1;
                 open_len = 0;
             }
-        } else if grid[row][col] == b'#' {
-            next_idx = idx + 1;
-            open_len = 0;
-        } else {
-            open_len += 1;
+            b'.' => {
+                open_len += 1;
+            }
+            _ => unreachable!(),
         }
     }
 }
@@ -92,7 +97,7 @@ pub fn print_grid(grid: &[Vec<u8>]) {
                     b'O' => 'O',
                     b'#' => '#',
                     b'.' => '.',
-                    _ => panic!(),
+                    _ => unreachable!(),
                 })
                 .collect()
         })
@@ -132,10 +137,9 @@ pub fn solution_2<'a>(lines: impl IntoIterator<Item = &'a str>) -> usize {
     for i in 0..1_000_000_000 {
         if let Some(initial) = seen.get(&grid) {
             let cycle_len = i - initial;
-            let mut remaining = 1_000_000_000 - i;
-            remaining %= cycle_len;
+            let remaining = 1_000_000_000 - i;
 
-            for _ in 0..remaining {
+            for _ in 0..remaining % cycle_len {
                 cycle_grid(&mut grid);
             }
             break;
