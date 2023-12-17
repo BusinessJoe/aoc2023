@@ -165,56 +165,78 @@ fn search(grid: &[Vec<u8>], cache: &mut [[[CacheEntry; 3]; 4]]) {
     }
 }
 
-/*
-fn print_solution(grid: &[Vec<u8>], cache: &[[CacheEntry; 4]]) {
+fn search_2(grid: &[Vec<u8>], cache: &mut [[[CacheEntry; 10]; 4]]) {
     let rows = grid.len();
     let cols = grid[0].len();
 
-    let mut chars = vec![vec!['0'; cols]; rows];
-    for r in 0..rows {
-        for c in 0..cols {
-            chars[r][c] = (b'0' + grid[r][c]).into()
+    let mut heads = VecDeque::new();
+    heads.push_front(Head {
+        pos: (0, 1),
+        dir: Dir::Right,
+        hist: 1,
+        prev_min: 0,
+    });
+    heads.push_front(Head {
+        pos: (1, 0),
+        dir: Dir::Down,
+        hist: 1,
+        prev_min: 0,
+    });
+
+    while let Some(head) = heads.pop_back() {
+        if !(0 <= head.pos.0
+            && head.pos.0 < rows as i32
+            && 0 <= head.pos.1
+            && head.pos.1 < cols as i32)
+        {
+            continue;
         }
-    }
+        let row = head.pos.0 as usize;
+        let col = head.pos.1 as usize;
 
-    let mut pos = (rows as i32 - 1, cols as i32 - 1);
-    loop {
-        let row = pos.0 as usize;
-        let col = pos.1 as usize;
-        let dir = cache[row * cols + col]
-            .iter()
-            .enumerate()
-            .min_by(|(_, a), (_, b)| a.cmp(b))
-            .map(|(idx, _)| match idx {
-                0 => Dir::Up,
-                1 => Dir::Down,
-                2 => Dir::Left,
-                3 => Dir::Right,
-                _ => unreachable!(),
-            })
-            .unwrap();
-
-        chars[row][col] = match dir {
-            Dir::Up => '^',
-            Dir::Down => 'v',
-            Dir::Left => '<',
-            Dir::Right => '>',
+        let entries = &mut cache[row *cols + col][head.dir.idx()][head.hist as usize - 1..];
+        let new_entry = CacheEntry {
+            min: head.prev_min + grid[row][col] as u64,
         };
 
-        pos = pos.mv(dir.turn_back());
+        let cache_hit = entries[0] <= new_entry;
 
-        if pos == (0, 0) {
-            break;
+        if cache_hit {
+            continue;
+        }
+
+        for e in entries.iter_mut() {
+            if new_entry < *e {
+               *e = new_entry; 
+            }
+        }
+
+        if head.hist < 10 {
+            heads.push_front(Head {
+                dir: head.dir,
+                hist: head.hist + 1,
+                pos: head.pos.mv(head.dir),
+                prev_min: new_entry.min,
+            });
+        }
+
+        if head.hist >= 4 {
+            heads.push_front(Head {
+                dir: head.dir.turn_left(),
+                hist: 1,
+                pos: head.pos.mv(head.dir.turn_left()),
+                prev_min: new_entry.min,
+            });
+
+            heads.push_front(Head {
+                dir: head.dir.turn_right(),
+                hist: 1,
+                pos: head.pos.mv(head.dir.turn_right()),
+                prev_min: new_entry.min,
+            });
         }
     }
-
-    let lines: Vec<String> = chars
-        .iter()
-        .map(|line| line.iter().collect::<String>())
-        .collect();
-    println!("{}", lines.join("\n"));
 }
-*/
 
 pub fn solution_1(input: &str) -> u64 {
     let grid = parse_grid(input);
@@ -224,7 +246,6 @@ pub fn solution_1(input: &str) -> u64 {
     let mut cache: Vec<[[CacheEntry; 3]; 4]> = vec![[[CacheEntry::max(); 3]; 4]; rows * cols];
 
     search(&grid, &mut cache);
-    //print_solution(&grid, &cache);
 
     let min = cache[cache.len() - 1]
         .iter()
@@ -234,8 +255,21 @@ pub fn solution_1(input: &str) -> u64 {
     min.min
 }
 
-pub fn solution_2(input: &str) -> usize {
-    0
+pub fn solution_2(input: &str) -> u64 {
+    let grid = parse_grid(input);
+    let rows = grid.len();
+    let cols = grid[0].len();
+
+    let mut cache: Vec<[[CacheEntry; 10]; 4]> = vec![[[CacheEntry::max(); 10]; 4]; rows * cols];
+
+    search_2(&grid, &mut cache);
+
+    let min = cache[cache.len() - 1]
+        .iter()
+        .map(|arr| arr.iter().min().unwrap())
+        .min()
+        .unwrap();
+    min.min
 }
 
 fn main() {
