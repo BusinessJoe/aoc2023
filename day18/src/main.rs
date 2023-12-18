@@ -96,7 +96,7 @@ fn get_turns(lines: &[Line]) -> Vec<Turn> {
         .collect()
 }
 
-fn solution(lines: &[Line]) -> usize {
+fn solution(lines: &[Line]) -> i64 {
     let mut y: i64 = 0;
     let mut sub_area: i64 = 0;
     for line in lines {
@@ -117,32 +117,29 @@ fn solution(lines: &[Line]) -> usize {
     }
 
     sub_area = sub_area.abs();
-    let mut border_len = 0;
 
-    let turns = get_turns(&lines);
+    let turns = get_turns(lines);
     let num_right_turns = turns.iter().filter(|t| **t == Turn::Right).count();
     let clockwise = num_right_turns > turns.len() / 2;
 
     for (line, turn) in lines.iter().zip(&turns) {
         if clockwise == (*turn == Turn::Right) {
-            sub_area -= 1;
+            sub_area += 3;
         } else {
-            sub_area -= 3;
+            sub_area += 1;
         }
-        sub_area -= (line.len as i64 - 1) * 2;
-        border_len += line.len;
+        sub_area += (line.len as i64 - 1) * 2;
     }
-    sub_area /= 4;
 
-    usize::try_from(sub_area).unwrap() + border_len
+    sub_area / 4
 }
 
-pub fn solution_1(input: &str) -> usize {
+pub fn solution_1(input: &str) -> i64 {
     let lines: Vec<Line> = input.lines().map(parse_line_1).collect();
     solution(&lines)
 }
 
-pub fn solution_2(input: &str) -> usize {
+pub fn solution_2(input: &str) -> i64 {
     let lines: Vec<Line> = input.lines().map(parse_line_2).collect();
     solution(&lines)
 }
