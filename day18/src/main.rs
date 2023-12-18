@@ -1,14 +1,22 @@
-use std::{
-    collections::HashSet,
-    io::{self, Read},
-};
+use std::io::{self, Read};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Dir {
     Up,
     Down,
     Left,
     Right,
+}
+
+impl Dir {
+    fn turn_left(self) -> Self {
+        match self {
+            Self::Up => Self::Left,
+            Self::Down => Self::Right,
+            Self::Left => Self::Down,
+            Self::Right => Self::Up,
+        }
+    }
 }
 
 trait Movable {
@@ -24,6 +32,12 @@ impl Movable for (i32, i32) {
             Dir::Right => (self.0, self.1 + 1),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Turn {
+    Left,
+    Right,
 }
 
 #[derive(Debug, Clone)]
@@ -45,13 +59,6 @@ fn parse_line_1(line: &str) -> Line {
 
     let len: usize = tokens[1].parse().unwrap();
 
-    let color = {
-        let r = u8::from_str_radix(&tokens[2][2..4], 16).unwrap();
-        let g = u8::from_str_radix(&tokens[2][4..6], 16).unwrap();
-        let b = u8::from_str_radix(&tokens[2][6..8], 16).unwrap();
-        (r, g, b)
-    };
-
     Line { dir, len }
 }
 
@@ -64,64 +71,70 @@ fn parse_line_2(line: &str) -> Line {
         '1' => Dir::Down,
         '2' => Dir::Left,
         '3' => Dir::Up,
-        _ => unreachable!()
+        _ => unreachable!(),
     };
 
     Line { dir, len }
 }
 
+fn get_turns(lines: &[Line]) -> Vec<Turn> {
+    let mut lines = lines.to_vec();
+    lines.push(lines[0].clone());
+
+    lines
+        .windows(2)
+        .map(|win| {
+            let curr = &win[0];
+            let next = &win[1];
+
+            if curr.dir.turn_left() == next.dir {
+                Turn::Left
+            } else {
+                Turn::Right
+            }
+        })
+        .collect()
+}
+
 fn solution(lines: &[Line]) -> usize {
-    let mut pos: (i32, i32) = (0, 0);
-    let mut border: HashSet<(i32, i32)> = HashSet::new();
-
+    let mut y: i64 = 0;
+    let mut sub_area: i64 = 0;
     for line in lines {
-        for _ in 0..line.len {
-            pos = pos.mv(line.dir);
-            border.insert(pos);
+        match line.dir {
+            Dir::Down => y += line.len as i64,
+            Dir::Up => y -= line.len as i64,
+            Dir::Right | Dir::Left => {
+                let sub_y = y * 2 + 1;
+                let sub_width = (line.len - 1) * 2 + 2;
+
+                if line.dir == Dir::Right {
+                    sub_area += sub_y * sub_width as i64;
+                } else {
+                    sub_area -= sub_y * sub_width as i64;
+                }
+            }
         }
     }
 
-    let min_row = *border.iter().map(|(r, _)| r).min().unwrap();
-    let min_col = *border.iter().map(|(_, c)| c).min().unwrap();
-    let max_row = *border.iter().map(|(r, _)| r).max().unwrap();
-    let max_col = *border.iter().map(|(_, c)| c).max().unwrap();
+    sub_area = sub_area.abs();
+    let mut border_len = 0;
 
-    let rows = usize::try_from(max_row - min_row + 1).unwrap();
-    let cols = usize::try_from(max_col - min_col + 1).unwrap();
+    let turns = get_turns(&lines);
+    let num_right_turns = turns.iter().filter(|t| **t == Turn::Right).count();
+    let clockwise = num_right_turns > turns.len() / 2;
 
-    // Add 1 for padding.
-    border = border
-        .into_iter()
-        .map(|(r, c)| (r - min_row + 1, c - min_col + 1))
-        .collect();
-
-    let mut visited: HashSet<(i32, i32)> = HashSet::new();
-    let mut to_visit = vec![(0, 0)];
-
-    while let Some(pos) = to_visit.pop() {
-        if !(0 <= pos.0 && pos.0 < rows as i32 + 2 && 0 <= pos.1 && pos.1 < cols as i32 + 2) {
-            continue;
+    for (line, turn) in lines.iter().zip(&turns) {
+        if clockwise == (*turn == Turn::Right) {
+            sub_area -= 1;
+        } else {
+            sub_area -= 3;
         }
-
-        if border.contains(&pos) {
-            continue;
-        }
-
-        if visited.contains(&pos) {
-            continue;
-        }
-
-        visited.insert(pos);
-
-        to_visit.extend([
-            pos.mv(Dir::Up),
-            pos.mv(Dir::Down),
-            pos.mv(Dir::Left),
-            pos.mv(Dir::Right),
-        ])
+        sub_area -= (line.len as i64 - 1) * 2;
+        border_len += line.len;
     }
+    sub_area /= 4;
 
-    (rows + 2) * (cols + 2) - visited.len()
+    usize::try_from(sub_area).unwrap() + border_len
 }
 
 pub fn solution_1(input: &str) -> usize {
