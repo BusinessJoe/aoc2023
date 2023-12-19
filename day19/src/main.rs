@@ -3,6 +3,7 @@ use std::{
     io::{self, Read},
 };
 
+#[derive(Debug, Clone)]
 struct Part {
     x: u32,
     m: u32,
@@ -12,7 +13,7 @@ struct Part {
 
 impl Part {
     fn parse(line: &str) -> Self {
-        let nums: Vec<u32> = line[1..line.len()-1]
+        let nums: Vec<u32> = line[1..line.len() - 1]
             .split('=')
             .skip(1)
             .map(|s| s.split(',').next().unwrap())
@@ -35,8 +36,18 @@ impl Part {
             Rating::S => self.s,
         }
     }
+
+    fn get_mut(&mut self, r: &Rating) -> &mut u32 {
+        match r {
+            Rating::X => &mut self.x,
+            Rating::M => &mut self.m,
+            Rating::A => &mut self.a,
+            Rating::S => &mut self.s,
+        }
+    }
 }
 
+#[derive(Debug)]
 enum Rating {
     X,
     M,
@@ -56,7 +67,7 @@ impl Rating {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 enum Outcome {
     Send(String),
     Reject,
@@ -73,6 +84,7 @@ impl Outcome {
     }
 }
 
+#[derive(Debug)]
 enum Cond {
     Lt(Rating, u32),
     Gt(Rating, u32),
@@ -99,6 +111,7 @@ impl Cond {
     }
 }
 
+#[derive(Debug)]
 struct Filter {
     cond: Cond,
     outcome: Outcome,
@@ -125,6 +138,26 @@ impl Filter {
             None
         }
     }
+
+    fn map_range(&self, min_part: Part, max_part: Part) -> ((Part, Part), Option<(Part, Part)>) {
+        match &self.cond {
+            Cond::Always => ((min_part, max_part), None),
+            Cond::Lt(r, val) => {
+                let mut t_max = max_part.clone();
+                let mut f_min = min_part.clone();
+                *t_max.get_mut(&r) = *val - 1;
+                *f_min.get_mut(&r) = *val;
+                ((min_part, t_max), Some((f_min, max_part)))
+            }
+            Cond::Gt(r, val) => {
+                let mut t_min = min_part.clone();
+                let mut f_max = max_part.clone();
+                *t_min.get_mut(&r) = *val + 1;
+                *f_max.get_mut(&r) = *val;
+                ((t_min, max_part), Some((min_part, f_max)))
+            }
+        }
+    }
 }
 
 fn parse_workflow(line: &str) -> (&str, Vec<Filter>) {
@@ -145,7 +178,6 @@ pub fn solution_1(input: &str) -> u32 {
 
     let mut p1 = 0;
     for part in parts {
-
         let mut name = "in".to_string();
         let accepted = loop {
             let filters = workflows.get(name.as_str()).unwrap();
@@ -158,9 +190,7 @@ pub fn solution_1(input: &str) -> u32 {
             }
             let out = out.unwrap();
             match out {
-                Outcome::Send(s) => {
-                    name = s
-                },
+                Outcome::Send(s) => name = s,
                 Outcome::Accept => break true,
                 Outcome::Reject => break false,
             }
@@ -174,8 +204,95 @@ pub fn solution_1(input: &str) -> u32 {
     p1
 }
 
-pub fn solution_2(input: &str) -> i64 {
-    0
+fn count_options(min: &Part, max: &Part) -> u64 {
+    (max.x - min.x + 1) as u64
+        * (max.m - min.m + 1) as u64
+        * (max.a - min.a + 1) as u64
+        * (max.s - min.s + 1) as u64
+}
+
+fn count_accepted(
+    name: &str,
+    workflows: &HashMap<&str, Vec<Filter>>,
+    mut min_part: Part,
+    mut max_part: Part,
+) -> u64 {
+    let filters = workflows.get(name).unwrap();
+
+    let mut total: u64 = 0;
+
+    for filter in filters {
+        match &filter.outcome {
+            Outcome::Reject => {
+                let (_, f_case) = filter.map_range(min_part.clone(), max_part.clone());
+                match f_case {
+                    Some((f_min, f_max)) => {
+                        min_part = f_min;
+                        max_part = f_max;
+                    }
+                    None => {
+                        break;
+                    }
+                }
+            }
+            Outcome::Accept => {
+                let ((t_min, t_max), f_case) = filter.map_range(min_part.clone(), max_part.clone());
+                total += count_options(&t_min, &t_max);
+                match f_case {
+                    Some((f_min, f_max)) => {
+                        debug_assert_eq!(count_options(&min_part, &max_part), count_options(&t_min, &t_max) + count_options(&f_min, &f_max));
+                        min_part = f_min;
+                        max_part = f_max;
+                    }
+                    None => {
+                        debug_assert_eq!(count_options(&min_part, &max_part), count_options(&t_min, &t_max));
+                        break;
+                    }
+                }
+            }
+            Outcome::Send(next) => {
+                let ((t_min, t_max), f_case) = filter.map_range(min_part.clone(), max_part.clone());
+                total += count_accepted(&next, workflows, t_min.clone(), t_max.clone());
+                match f_case {
+                    Some((f_min, f_max)) => {
+                        debug_assert_eq!(count_options(&min_part, &max_part), count_options(&t_min, &t_max) + count_options(&f_min, &f_max));
+                        min_part = f_min;
+                        max_part = f_max;
+                    }
+                    None => {
+                        debug_assert_eq!(count_options(&min_part, &max_part), count_options(&t_min, &t_max));
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    total
+}
+
+pub fn solution_2(input: &str) -> u64 {
+    let (workflows_segment, _) = input.split_once("\n\n").unwrap();
+
+    let workflows: HashMap<&str, Vec<Filter>> =
+        workflows_segment.lines().map(parse_workflow).collect();
+
+    count_accepted(
+        "in",
+        &workflows,
+        Part {
+            x: 1,
+            m: 1,
+            a: 1,
+            s: 1,
+        },
+        Part {
+            x: 4000,
+            m: 4000,
+            a: 4000,
+            s: 4000,
+        },
+    )
 }
 
 fn main() {
