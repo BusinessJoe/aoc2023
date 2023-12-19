@@ -1,6 +1,5 @@
 use std::io::{self, Read};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Dir {
     Up,
     Down,
@@ -8,39 +7,6 @@ enum Dir {
     Right,
 }
 
-impl Dir {
-    fn turn_left(self) -> Self {
-        match self {
-            Self::Up => Self::Left,
-            Self::Down => Self::Right,
-            Self::Left => Self::Down,
-            Self::Right => Self::Up,
-        }
-    }
-}
-
-trait Movable {
-    fn mv(&self, dir: Dir) -> Self;
-}
-
-impl Movable for (i32, i32) {
-    fn mv(&self, dir: Dir) -> Self {
-        match dir {
-            Dir::Up => (self.0 - 1, self.1),
-            Dir::Down => (self.0 + 1, self.1),
-            Dir::Left => (self.0, self.1 - 1),
-            Dir::Right => (self.0, self.1 + 1),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Turn {
-    Left,
-    Right,
-}
-
-#[derive(Debug, Clone)]
 struct Line {
     dir: Dir,
     len: usize,
@@ -77,61 +43,22 @@ fn parse_line_2(line: &str) -> Line {
     Line { dir, len }
 }
 
-fn get_turns(lines: &[Line]) -> Vec<Turn> {
-    let mut lines = lines.to_vec();
-    lines.push(lines[0].clone());
-
-    lines
-        .windows(2)
-        .map(|win| {
-            let curr = &win[0];
-            let next = &win[1];
-
-            if curr.dir.turn_left() == next.dir {
-                Turn::Left
-            } else {
-                Turn::Right
-            }
-        })
-        .collect()
-}
-
 fn solution(lines: &[Line]) -> i64 {
     let mut y: i64 = 0;
     let mut sub_area: i64 = 0;
+    let mut loop_length: i64 = 0;
+
     for line in lines {
+        loop_length += line.len as i64;
         match line.dir {
             Dir::Down => y += line.len as i64,
             Dir::Up => y -= line.len as i64,
-            Dir::Right | Dir::Left => {
-                let sub_y = y * 2 + 1;
-                let sub_width = (line.len - 1) * 2 + 2;
-
-                if line.dir == Dir::Right {
-                    sub_area += sub_y * sub_width as i64;
-                } else {
-                    sub_area -= sub_y * sub_width as i64;
-                }
-            }
+            Dir::Right => sub_area += y * line.len as i64,
+            Dir::Left => sub_area -= y * line.len as i64,
         }
     }
 
-    sub_area = sub_area.abs();
-
-    let turns = get_turns(lines);
-    let num_right_turns = turns.iter().filter(|t| **t == Turn::Right).count();
-    let clockwise = num_right_turns > turns.len() / 2;
-
-    for (line, turn) in lines.iter().zip(&turns) {
-        if clockwise == (*turn == Turn::Right) {
-            sub_area += 3;
-        } else {
-            sub_area += 1;
-        }
-        sub_area += (line.len as i64 - 1) * 2;
-    }
-
-    sub_area / 4
+    sub_area.abs() + loop_length / 2 + 1
 }
 
 pub fn solution_1(input: &str) -> i64 {
@@ -153,4 +80,19 @@ fn main() {
     println!("Part 1: {p1}");
     let p2 = solution_2(&input);
     println!("Part 2: {p2}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn part_1() {
+        assert_eq!(36807, solution_1(include_str!("../input.txt")))
+    }
+
+    #[test]
+    fn part_2() {
+        assert_eq!(48797603984357, solution_2(include_str!("../input.txt")))
+    }
 }
