@@ -9,7 +9,7 @@ enum Dir {
 
 struct Line {
     dir: Dir,
-    len: usize,
+    len: i64,
 }
 
 fn parse_line_1(line: &str) -> Line {
@@ -23,7 +23,7 @@ fn parse_line_1(line: &str) -> Line {
         _ => unreachable!(),
     };
 
-    let len: usize = tokens[1].parse().unwrap();
+    let len: i64 = tokens[1].parse().unwrap();
 
     Line { dir, len }
 }
@@ -31,7 +31,7 @@ fn parse_line_1(line: &str) -> Line {
 fn parse_line_2(line: &str) -> Line {
     let tokens: Vec<&str> = line.split(' ').collect();
 
-    let len: usize = usize::from_str_radix(&tokens[2][2..7], 16).unwrap();
+    let len = i64::from_str_radix(&tokens[2][2..7], 16).unwrap();
     let dir = match &tokens[2].chars().nth(7).unwrap() {
         '0' => Dir::Right,
         '1' => Dir::Down,
@@ -49,12 +49,12 @@ fn solution(lines: &[Line]) -> i64 {
     let mut loop_length: i64 = 0;
 
     for line in lines {
-        loop_length += line.len as i64;
+        loop_length += line.len;
         match line.dir {
-            Dir::Down => y += line.len as i64,
-            Dir::Up => y -= line.len as i64,
-            Dir::Right => sub_area += y * line.len as i64,
-            Dir::Left => sub_area -= y * line.len as i64,
+            Dir::Down => y += line.len,
+            Dir::Up => y -= line.len,
+            Dir::Right => sub_area += y * line.len,
+            Dir::Left => sub_area -= y * line.len,
         }
     }
 
