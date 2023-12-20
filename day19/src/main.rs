@@ -98,7 +98,7 @@ impl Cond {
         } else if let Some((c, num)) = s.split_once('>') {
             Self::Gt(Rating::parse(c), num.parse().unwrap())
         } else {
-            panic!("{}", s)
+            Self::Always
         }
     }
 
@@ -139,20 +139,20 @@ impl Filter {
         }
     }
 
-    fn map_range(&self, min_part: Part, max_part: Part) -> ((Part, Part), Option<(Part, Part)>) {
+    fn split(&self, min_part: Part, max_part: Part) -> ((Part, Part), Option<(Part, Part)>) {
         match &self.cond {
             Cond::Always => ((min_part, max_part), None),
             Cond::Lt(r, val) => {
                 let mut t_max = max_part.clone();
                 let mut f_min = min_part.clone();
                 *t_max.get_mut(&r) = *val - 1;
-                *f_min.get_mut(&r) = *val;
+                *f_min.get_mut(&r) = *val - 1;
                 ((min_part, t_max), Some((f_min, max_part)))
             }
             Cond::Gt(r, val) => {
                 let mut t_min = min_part.clone();
                 let mut f_max = max_part.clone();
-                *t_min.get_mut(&r) = *val + 1;
+                *t_min.get_mut(&r) = *val;
                 *f_max.get_mut(&r) = *val;
                 ((t_min, max_part), Some((min_part, f_max)))
             }
@@ -205,10 +205,10 @@ pub fn solution_1(input: &str) -> u32 {
 }
 
 fn count_options(min: &Part, max: &Part) -> u64 {
-    (max.x - min.x + 1) as u64
-        * (max.m - min.m + 1) as u64
-        * (max.a - min.a + 1) as u64
-        * (max.s - min.s + 1) as u64
+    (max.x - min.x) as u64
+        * (max.m - min.m) as u64
+        * (max.a - min.a) as u64
+        * (max.s - min.s) as u64
 }
 
 fn count_accepted(
@@ -222,48 +222,30 @@ fn count_accepted(
     let mut total: u64 = 0;
 
     for filter in filters {
-        match &filter.outcome {
+        let f_case = match &filter.outcome {
             Outcome::Reject => {
-                let (_, f_case) = filter.map_range(min_part.clone(), max_part.clone());
-                match f_case {
-                    Some((f_min, f_max)) => {
-                        min_part = f_min;
-                        max_part = f_max;
-                    }
-                    None => {
-                        break;
-                    }
-                }
+                let (_, f_case) = filter.split(min_part.clone(), max_part.clone());
+                f_case
             }
             Outcome::Accept => {
-                let ((t_min, t_max), f_case) = filter.map_range(min_part.clone(), max_part.clone());
+                let ((t_min, t_max), f_case) = filter.split(min_part.clone(), max_part.clone());
                 total += count_options(&t_min, &t_max);
-                match f_case {
-                    Some((f_min, f_max)) => {
-                        debug_assert_eq!(count_options(&min_part, &max_part), count_options(&t_min, &t_max) + count_options(&f_min, &f_max));
-                        min_part = f_min;
-                        max_part = f_max;
-                    }
-                    None => {
-                        debug_assert_eq!(count_options(&min_part, &max_part), count_options(&t_min, &t_max));
-                        break;
-                    }
-                }
+                f_case
             }
             Outcome::Send(next) => {
-                let ((t_min, t_max), f_case) = filter.map_range(min_part.clone(), max_part.clone());
+                let ((t_min, t_max), f_case) = filter.split(min_part.clone(), max_part.clone());
                 total += count_accepted(&next, workflows, t_min.clone(), t_max.clone());
-                match f_case {
-                    Some((f_min, f_max)) => {
-                        debug_assert_eq!(count_options(&min_part, &max_part), count_options(&t_min, &t_max) + count_options(&f_min, &f_max));
-                        min_part = f_min;
-                        max_part = f_max;
-                    }
-                    None => {
-                        debug_assert_eq!(count_options(&min_part, &max_part), count_options(&t_min, &t_max));
-                        break;
-                    }
-                }
+                f_case
+            }
+        };
+
+        match f_case {
+            Some((f_min, f_max)) => {
+                min_part = f_min;
+                max_part = f_max;
+            }
+            None => {
+                break;
             }
         }
     }
@@ -281,10 +263,10 @@ pub fn solution_2(input: &str) -> u64 {
         "in",
         &workflows,
         Part {
-            x: 1,
-            m: 1,
-            a: 1,
-            s: 1,
+            x: 0,
+            m: 0,
+            a: 0,
+            s: 0,
         },
         Part {
             x: 4000,
@@ -304,4 +286,19 @@ fn main() {
     println!("Part 1: {p1}");
     let p2 = solution_2(&input);
     println!("Part 2: {p2}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn part_1() {
+        assert_eq!(456651, solution_1(include_str!("../input.txt")));
+    }
+
+    #[test]
+    fn part_2() {
+        assert_eq!(131899818301477, solution_2(include_str!("../input.txt")));
+    }
 }
