@@ -118,6 +118,22 @@ fn build_cycle(start_name: &str, map: &Map, dirs: &[Direction]) -> Cycle {
     }
 }
 
+fn gcd(mut a: usize, mut b: usize) -> usize {
+    if a < b {
+        (a, b) = (b, a);
+    }
+
+    if b == 0 {
+        a
+    } else {
+        gcd(b, a % b)
+    }
+}
+
+fn lcm(a: usize, b: usize) -> usize {
+    a * b / gcd(a, b)
+}
+
 fn merge_cycles(c1: &Cycle, c2: &Cycle) -> Cycle {
     let head_len = cmp::max(c1.head_zees.len(), c2.head_zees.len());
     let mut head_zees: Vec<bool> = Vec::new();
@@ -127,7 +143,7 @@ fn merge_cycles(c1: &Cycle, c2: &Cycle) -> Cycle {
         head_zees.push(c1.zees(i) & c2.zees(i));
     }
 
-    let period = num::integer::lcm(c1.period, c2.period);
+    let period = lcm(c1.period, c2.period);
     let reps = period / c1.period;
     for r in 0..reps {
         for idx in &c1.periodic_zees {
