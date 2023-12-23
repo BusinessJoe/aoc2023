@@ -1,21 +1,22 @@
 use std::{
-    cmp,
     collections::{HashMap, HashSet},
     io::{self, Read},
 };
 
 struct Grid {
     tiles: Vec<Vec<u8>>,
+    path_cache: HashMap<SignedCoord, (usize, SignedCoord, SignedCoord)>,
 }
 
-type Coord = (usize, usize);
 type SignedCoord = (i32, i32);
-type DistCache = HashMap<Coord, usize>;
 
 impl Grid {
     fn parse(input: &str) -> Self {
         let tiles = input.lines().map(|line| line.as_bytes().to_vec()).collect();
-        Self { tiles }
+        Self {
+            tiles,
+            path_cache: HashMap::new(),
+        }
     }
 
     fn rows(&self) -> usize {
@@ -24,6 +25,10 @@ impl Grid {
 
     fn cols(&self) -> usize {
         self.tiles[0].len()
+    }
+
+    fn end(&self) -> SignedCoord {
+        (self.rows() as i32 - 1, self.cols() as i32 - 2)
     }
 
     fn get_signed(&self, coord: SignedCoord) -> Option<u8> {
@@ -38,8 +43,16 @@ impl Grid {
         }
     }
 
-    /// Returns distance of path and coordinate of intersection/endpoint
-    fn follow_path(&self, start: SignedCoord, mut prev: SignedCoord) -> (usize, SignedCoord) {
+    /// Returns distance of path and coordinate of intersection/endpoint as well as prev coord
+    fn follow_path(
+        &mut self,
+        start: SignedCoord,
+        mut prev: SignedCoord,
+    ) -> (usize, SignedCoord, SignedCoord) {
+        if let Some(output) = self.path_cache.get(&start) {
+            return *output;
+        }
+
         let mut dist = 1;
 
         let mut row = start.0 as i32;
@@ -60,53 +73,132 @@ impl Grid {
                         (row, col) = next;
                         dist += 1;
                         end = false;
-                    } else if tile == b'>' && dc == 1
-                        || tile == b'<' && dc == -1
-                        || tile == b'v' && dr == 1
-                        || tile == b'^' && dr == -1
-                    {
+                    } else if [b'>', b'<', b'v', b'^'].contains(&tile) {
+                        prev = (row + dr, col + dc);
                         (row, col) = (row + 2 * dr, col + 2 * dc);
                         dist += 2;
-                        return (dist, (row, col));
+                        let output = (dist, (row, col), prev);
+                        self.path_cache.insert(start, output);
+                        return output;
                     }
                 }
             }
 
             if end {
-                return (dist, (row, col));
+                let output = (dist, (row, col), prev);
+                self.path_cache.insert(start, output);
+                return output;
             }
         }
     }
 
-    fn longest_distance_helper(&self, start: SignedCoord, prev: SignedCoord) -> usize {
-        let (dist, end) = self.follow_path(start, prev);
+    fn longest_distance_helper_1(
+        &mut self,
+        start: SignedCoord,
+        prev: SignedCoord,
+        visited: &mut HashSet<SignedCoord>,
+    ) -> Option<usize> {
+        let (dist, end, prev) = self.follow_path(start, prev);
+
+        if visited.contains(&end) {
+            return None;
+        }
+
+        visited.insert(end);
+
+        if end == self.end() {
+            visited.remove(&end);
+            return Some(dist);
+        }
 
         // We're at an intersection or done?
         let mut dists: Vec<usize> = Vec::new();
         for (dr, dc) in [(0, 1), (0, -1), (1, 0), (-1, 0)] {
             let next = (end.0 + dr, end.1 + dc);
+            if next == prev {
+                continue;
+            }
             if let Some(tile) = self.get_signed(next) {
                 if tile == b'>' && dc == 1
                     || tile == b'<' && dc == -1
-                    || tile == b'v' && dr == 1
                     || tile == b'^' && dr == -1
+                    || tile == b'v' && dr == 1
                 {
-                    dists.push(self.longest_distance_helper(next, end));
+                    if let Some(d) = self.longest_distance_helper_1(next, end, visited) {
+                        dists.push(d);
+                    }
                 }
             }
         }
+        visited.remove(&end);
 
-        dist + dists.into_iter().max().unwrap_or_default()
+        if dists.is_empty() {
+            return None;
+        }
+
+        let ret = dist + dists.into_iter().max().unwrap();
+        Some(ret)
+    }
+
+    fn longest_distance_helper_2(
+        &mut self,
+        start: SignedCoord,
+        prev: SignedCoord,
+        visited: &mut HashSet<SignedCoord>,
+    ) -> Option<usize> {
+        let (dist, end, prev) = self.follow_path(start, prev);
+
+        if visited.contains(&end) {
+            return None;
+        }
+
+        visited.insert(end);
+
+        if end == self.end() {
+            visited.remove(&end);
+            return Some(dist);
+        }
+
+        // We're at an intersection or done?
+        let mut dists: Vec<usize> = Vec::new();
+        for (dr, dc) in [(0, 1), (0, -1), (1, 0), (-1, 0)] {
+            let next = (end.0 + dr, end.1 + dc);
+            if next == prev {
+                continue;
+            }
+            if let Some(tile) = self.get_signed(next) {
+                if [b'>', b'<', b'v', b'^'].contains(&tile) {
+                    if let Some(d) = self.longest_distance_helper_2(next, end, visited) {
+                        dists.push(d);
+                    }
+                }
+            }
+        }
+        visited.remove(&end);
+
+        if dists.is_empty() {
+            return None;
+        }
+
+        let ret = dist + dists.into_iter().max().unwrap();
+        Some(ret)
     }
 }
 
 pub fn solution_1(input: &str) -> usize {
-    let grid = Grid::parse(input);
-    grid.longest_distance_helper((0, 1), (0, 0)) - 1
+    let mut grid = Grid::parse(input);
+    let mut visited = HashSet::new();
+    grid.longest_distance_helper_1((0, 1), (0, 0), &mut visited)
+        .unwrap()
+        - 1
 }
 
 pub fn solution_2(input: &str) -> usize {
-    0
+    let mut grid = Grid::parse(input);
+    let mut visited = HashSet::new();
+    grid.longest_distance_helper_2((0, 1), (0, 0), &mut visited)
+        .unwrap()
+        - 1
 }
 
 fn main() {
