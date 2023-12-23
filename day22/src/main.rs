@@ -1,8 +1,7 @@
 use std::{
     cmp,
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     io::{self, Read},
-    iter,
 };
 
 /// (X, Y, Z) triple
@@ -68,37 +67,6 @@ impl Brick {
     }
 }
 
-fn brick_supports_helper(id: Id, above: &HashMap<Id, HashSet<Id>>, below: &HashMap<Id, HashSet<Id>>, cache: &mut HashMap<Id, HashSet<usize>>) {
-    let mut supports = HashSet::new();
-    for a in above.get(&id).unwrap_or(&HashSet::new()) {
-        if !below.get(a).unwrap_or_default().iter().any
-            // a won't fall
-            continue; 
-        }
-
-        supports.insert(*a);
-        if let Some(s) = cache.get(a) {
-            supports.extend(s);
-        } else {
-            brick_supports_helper(*a, above, below, cache);
-            let s = cache.get(a).unwrap();
-            supports.extend(s);
-        }
-    }
-
-    cache.insert(id, supports);
-}
-
-fn brick_supports(bricks: &[Brick], above: &HashMap<Id, HashSet<Id>>, below: &HashMap<Id, HashSet<Id>>) -> HashMap<Id, HashSet<usize>> {
-    let mut cache: HashMap<Id, HashSet<usize>> = HashMap::new();
-
-    for b in bricks {
-        brick_supports_helper(b.id, above, below, &mut cache);
-    }
-
-    cache
-}
-
 pub fn solution(input: &str) -> (usize, usize) {
     let mut bricks: Vec<Brick> = input
         .lines()
@@ -155,14 +123,38 @@ pub fn solution(input: &str) -> (usize, usize) {
     let mut p1 = 0;
     let mut p2 = 0;
 
-    let num_bricks = brick_supports(&bricks, &above, &below);
+    for b in &bricks {
+        let mut removed = HashSet::from([b.id]);
 
-    for (id, n) in num_bricks {
-        dbg!(id, n);
-        if n == 0 {
+        loop {
+            let mut changed = false;
+
+            for a in &bricks {
+                if removed.contains(&a.id) {
+                    continue;
+                }
+                let can_remove = below.get(&a.id).map_or(false, |brick_below| {
+                    !brick_below.is_empty() && brick_below.is_subset(&removed)
+                });
+
+                if can_remove {
+                    changed = true;
+                    removed.insert(a.id);
+                }
+            }
+
+            if !changed {
+                break;
+            }
+        }
+
+        // brick can be disintigrated if all bricks above it has at least a second brick below it
+        let can_be_disintigrated = removed.len() == 1;
+
+        if can_be_disintigrated {
             p1 += 1;
         }
-        p2 += n;
+        p2 += removed.len() - 1;
     }
 
     (p1, p2)
